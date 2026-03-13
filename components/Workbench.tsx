@@ -37,7 +37,7 @@ const substituteVariables = (
     /\{\{(.+?)\}\}/g,
     (_, key) => vars[key] || `{{${key}}}`,
   );
-  result = result.replacea(/\$([a-zA-Z0-9_]+)/g, (match, key) => {
+  result = result.replace(/\$([a-zA-Z0-9_]+)/g, (match, key) => {
     return vars[key] !== undefined ? vars[key] : match;
   });
   result = result.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
@@ -173,13 +173,49 @@ const Workbench: React.FC<WorkbenchProps> = ({
       return current;
     };
 
+    const getResolvedSchema = (
+      schemaObj: any,
+      visited = new Set<string>(),
+    ): any => {
+      if (!schemaObj) return schemaObj;
+      let resolved = { ...schemaObj };
+
+      if (resolved.$ref) {
+        if (visited.has(resolved.$ref)) return resolved;
+        visited.add(resolved.$ref);
+        const refResolved = resolveRef(resolved.$ref);
+        if (refResolved) {
+          resolved = {
+            ...resolved,
+            ...getResolvedSchema(refResolved, visited),
+          };
+        }
+        delete resolved.$ref;
+      }
+
+      if (resolved.allOf && Array.isArray(resolved.allOf)) {
+        resolved.allOf.forEach((sub: any) => {
+          const subResolved = getResolvedSchema(sub, visited);
+          if (subResolved.properties) {
+            resolved.properties = {
+              ...(resolved.properties || {}),
+              ...subResolved.properties,
+            };
+          }
+          if (subResolved.required) {
+            resolved.required = [
+              ...(resolved.required || []),
+              ...subResolved.required,
+            ];
+          }
+        });
+      }
+      return resolved;
+    };
+
     const getConstraint = (p: any): string => {
       const c: string[] = [];
-      let schema = p.schema || p;
-
-      if (schema.$ref) {
-        schema = resolveRef(schema.$ref) || schema;
-      }
+      let schema = getResolvedSchema(p.schema || p);
 
       const isRequired = p.required === true;
       c.push(`required:${isRequired}`);
@@ -191,13 +227,19 @@ const Workbench: React.FC<WorkbenchProps> = ({
       if (schema.minimum !== undefined) c.push(`min:${schema.minimum}`);
       if (schema.maximum !== undefined) c.push(`max:${schema.maximum}`);
 
+      if (schema.enum && Array.isArray(schema.enum)) {
+        c.push(`enum:${schema.enum.join("|")}`);
+      } else if (schema.items?.enum && Array.isArray(schema.items.enum)) {
+        c.push(`enum:${schema.items.enum.join("|")}`);
+      }
+
       return c.join(", ");
     };
 
     const params: KVItem[] = (endpoint.parameters || [])
       .filter((p) => p.in === "query")
       .map((p) => {
-        const schema = p.schema || {};
+        const schema = getResolvedSchema(p.schema || p);
         const options =
           p.enum || p.items?.enum || schema.enum || schema.items?.enum;
         return {
@@ -215,7 +257,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     const pathParamItems: KVItem[] = (endpoint.parameters || [])
       .filter((p) => p.in === "path")
       .map((p) => {
-        const schema = p.schema || {};
+        const schema = getResolvedSchema(p.schema || p);
         const options =
           p.enum || p.items?.enum || schema.enum || schema.items?.enum;
         return {
@@ -232,14 +274,20 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
     const headerItems: KVItem[] = (endpoint.parameters || [])
       .filter((p) => p.in === "header")
-      .map((p) => ({
-        id: Math.random().toString(),
-        key: p.name,
-        value: p.default !== undefined ? String(p.default) : "",
-        enabled: true,
-        description: p.description || "",
-        constraint: getConstraint(p),
-      }));
+      .map((p) => {
+        const schema = getResolvedSchema(p.schema || p);
+        const options =
+          p.enum || p.items?.enum || schema.enum || schema.items?.enum;
+        return {
+          id: Math.random().toString(),
+          key: p.name,
+          value: p.default !== undefined ? String(p.default) : "",
+          enabled: true,
+          description: p.description || "",
+          options: Array.isArray(options) ? options.map(String) : undefined,
+          constraint: getConstraint(p),
+        };
+      });
 
     const getRawFormatFromMime = (mime: string): RawFormat => {
       if (mime.includes("json")) return "json";
@@ -261,38 +309,72 @@ const Workbench: React.FC<WorkbenchProps> = ({
         return current;
       };
 
-      const generateMock = (s: any, visited = new Set()): any => {
-        if (!s) return null;
+      const getResolvedSchema = (
+        schemaObj: any,
+        visited = new Set<string>(),
+      ): any => {
+        if (!schemaObj) return schemaObj;
+        let resolved = { ...schemaObj };
 
-        // Handle $ref
-        if (s.$ref) {
-          if (visited.has(s.$ref)) return {}; // Prevent infinite recursion
-          visited.add(s.$ref);
-          const resolved = resolveRef(s.$ref);
-          return generateMock(resolved, visited);
+        if (resolved.$ref) {
+          if (visited.has(resolved.$ref)) return resolved;
+          visited.add(resolved.$ref);
+          const refResolved = resolveRef(resolved.$ref);
+          if (refResolved) {
+            resolved = {
+              ...resolved,
+              ...getResolvedSchema(refResolved, visited),
+            };
+          }
+          delete resolved.$ref;
         }
 
-        if (s.example !== undefined) return s.example;
-        if (s.default !== undefined) return s.default;
+        if (resolved.allOf && Array.isArray(resolved.allOf)) {
+          resolved.allOf.forEach((sub: any) => {
+            const subResolved = getResolvedSchema(sub, visited);
+            if (subResolved.properties) {
+              resolved.properties = {
+                ...(resolved.properties || {}),
+                ...subResolved.properties,
+              };
+            }
+            if (subResolved.required) {
+              resolved.required = [
+                ...(resolved.required || []),
+                ...subResolved.required,
+              ];
+            }
+          });
+        }
+        return resolved;
+      };
 
-        if (s.enum && s.enum.length > 0) return s.enum[0];
+      const generateMock = (s: any, visited = new Set<string>()): any => {
+        if (!s) return null;
 
-        if (s.type === "object" || s.properties) {
+        const resolved = getResolvedSchema(s, visited);
+
+        if (resolved.example !== undefined) return resolved.example;
+        if (resolved.default !== undefined) return resolved.default;
+
+        if (resolved.enum && resolved.enum.length > 0) return resolved.enum[0];
+
+        if (resolved.type === "object" || resolved.properties) {
           const mock: any = {};
-          const props = s.properties || {};
+          const props = resolved.properties || {};
           Object.keys(props).forEach((key) => {
             mock[key] = generateMock(props[key], new Set(visited));
           });
           return mock;
         }
 
-        if (s.type === "array") {
-          return [generateMock(s.items, new Set(visited))];
+        if (resolved.type === "array") {
+          return [generateMock(resolved.items, new Set(visited))];
         }
 
-        switch (s.type) {
+        switch (resolved.type) {
           case "string":
-            return s.format === "date-time"
+            return resolved.format === "date-time"
               ? new Date().toISOString()
               : "string";
           case "integer":
@@ -321,29 +403,68 @@ const Workbench: React.FC<WorkbenchProps> = ({
         return current;
       };
 
-      let targetSchema = schema;
-      if (schema && schema.$ref) {
-        targetSchema = resolveRef(schema.$ref);
-      }
+      const getResolvedSchema = (
+        schemaObj: any,
+        visited = new Set<string>(),
+      ): any => {
+        if (!schemaObj) return schemaObj;
+        let resolved = { ...schemaObj };
+
+        if (resolved.$ref) {
+          if (visited.has(resolved.$ref)) return resolved;
+          visited.add(resolved.$ref);
+          const refResolved = resolveRef(resolved.$ref);
+          if (refResolved) {
+            resolved = {
+              ...resolved,
+              ...getResolvedSchema(refResolved, visited),
+            };
+          }
+          delete resolved.$ref;
+        }
+
+        if (resolved.allOf && Array.isArray(resolved.allOf)) {
+          resolved.allOf.forEach((sub: any) => {
+            const subResolved = getResolvedSchema(sub, visited);
+            if (subResolved.properties) {
+              resolved.properties = {
+                ...(resolved.properties || {}),
+                ...subResolved.properties,
+              };
+            }
+            if (subResolved.required) {
+              resolved.required = [
+                ...(resolved.required || []),
+                ...subResolved.required,
+              ];
+            }
+          });
+        }
+        return resolved;
+      };
+
+      const targetSchema = getResolvedSchema(schema);
 
       if (!targetSchema || !targetSchema.properties) return [];
-      return Object.keys(targetSchema.properties).map((key) => ({
-        id: Math.random().toString(),
-        key,
-        value:
-          targetSchema.properties[key].default !== undefined
-            ? String(targetSchema.properties[key].default)
-            : targetSchema.properties[key].example !== undefined
-              ? String(targetSchema.properties[key].example)
-              : "",
-        enabled: true,
-        type:
-          targetSchema.properties[key].format === "binary" ||
-          targetSchema.properties[key].type === "file"
-            ? "file"
-            : "text",
-        description: targetSchema.properties[key].description || "",
-      }));
+      return Object.keys(targetSchema.properties).map((key) => {
+        const propSchema = getResolvedSchema(targetSchema.properties[key]);
+        return {
+          id: Math.random().toString(),
+          key,
+          value:
+            propSchema.default !== undefined
+              ? String(propSchema.default)
+              : propSchema.example !== undefined
+                ? String(propSchema.example)
+                : "",
+          enabled: true,
+          type:
+            propSchema.format === "binary" || propSchema.type === "file"
+              ? "file"
+              : "text",
+          description: propSchema.description || "",
+        };
+      });
     };
 
     let initialBody = "";
@@ -720,34 +841,75 @@ const Workbench: React.FC<WorkbenchProps> = ({
         }
       }
 
-      const response = await fetch(finalUrl, options);
+      const plainHeaders: Record<string, string> = {};
+      fetchHeaders.forEach((v, k) => {
+        plainHeaders[k] = v;
+      });
+
+      let proxyData: any = undefined;
+      if (options.body instanceof URLSearchParams) {
+        proxyData = options.body.toString();
+        plainHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+      } else if (options.body instanceof FormData) {
+        const formDataArray: { key: string; value: string }[] = [];
+        options.body.forEach((value, key) => {
+          formDataArray.push({ key, value: value.toString() });
+        });
+        proxyData = { _isFormData: true, items: formDataArray };
+      } else {
+        proxyData = options.body;
+      }
+
+      const proxyPayload = {
+        method: options.method,
+        url: finalUrl,
+        headers: plainHeaders,
+        data: proxyData,
+      };
+
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(proxyPayload),
+        signal: controller.signal,
+      });
+
       if (timeoutId) clearTimeout(timeoutId);
       const endTime = performance.now();
 
       let responseBody: any;
-      const contentType = response.headers.get("content-type") || "";
+      let resHeaders: Record<string, string> = {};
+      let statusCode = 500;
+      let statusText = "Proxy Error";
+
       try {
-        if (contentType.includes("application/json")) {
-          responseBody = await response.json();
+        const proxyRes = await response.json();
+        if (proxyRes.error) {
+          responseBody = proxyRes.details || proxyRes.error;
         } else {
-          responseBody = await response.text();
+          statusCode = proxyRes.status;
+          statusText = proxyRes.statusText;
+          resHeaders = proxyRes.headers || {};
+          responseBody = proxyRes.data;
+          if (typeof responseBody === "object") {
+            responseBody = JSON.stringify(responseBody, null, 2);
+          } else {
+            responseBody = String(responseBody);
+          }
         }
       } catch (e) {
-        responseBody = "[Error parsing response body]";
+        responseBody = "[Error parsing proxy response]";
       }
-
-      const resHeaders: Record<string, string> = {};
-      response.headers.forEach((v, k) => {
-        resHeaders[k] = v;
-      });
 
       const realResult: ExecutionResult = {
         id: Math.random().toString(),
         testCaseId: "manual",
         testCaseName: requestName,
         status: "pass",
-        statusCode: response.status,
-        statusText: response.statusText,
+        statusCode: statusCode,
+        statusText: statusText,
         responseTime: Math.round(endTime - startTime),
         request: {
           method,
@@ -2535,25 +2697,61 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
 
       if (!schema) return { constraint: "" };
 
+      const getResolvedSchema = (
+        schemaObj: any,
+        visited = new Set<string>(),
+      ): any => {
+        if (!schemaObj) return schemaObj;
+        let resolved = { ...schemaObj };
+
+        if (resolved.$ref) {
+          if (visited.has(resolved.$ref)) return resolved;
+          visited.add(resolved.$ref);
+          const refResolved = resolveRef(resolved.$ref);
+          if (refResolved) {
+            resolved = {
+              ...resolved,
+              ...getResolvedSchema(refResolved, visited),
+            };
+          }
+          delete resolved.$ref;
+        }
+
+        if (resolved.allOf && Array.isArray(resolved.allOf)) {
+          resolved.allOf.forEach((sub: any) => {
+            const subResolved = getResolvedSchema(sub, visited);
+            if (subResolved.properties) {
+              resolved.properties = {
+                ...(resolved.properties || {}),
+                ...subResolved.properties,
+              };
+            }
+            if (subResolved.required) {
+              resolved.required = [
+                ...(resolved.required || []),
+                ...subResolved.required,
+              ];
+            }
+          });
+        }
+        return resolved;
+      };
+
       const parts = path.split(/\.|(?=\[)/).map((p) => p.replace(/\[|\]/g, ""));
-      let current = schema;
+      let current = getResolvedSchema(schema);
       let isRequired = false;
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
         if (!current) break;
 
-        if (current.$ref) {
-          current = resolveRef(current.$ref);
-          if (!current) break;
-        }
+        current = getResolvedSchema(current);
 
         if (!isNaN(parseInt(part))) {
           // Array index
-          current = current.items;
-          if (current && current.$ref) {
-            current = resolveRef(current.$ref);
-          }
+          current = current.items
+            ? getResolvedSchema(current.items)
+            : undefined;
         } else {
           // Object property
           if (
@@ -2570,11 +2768,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
       }
 
       if (!current) return { constraint: "" };
-
-      if (current.$ref) {
-        current = resolveRef(current.$ref);
-        if (!current) return { constraint: "" };
-      }
+      current = getResolvedSchema(current);
 
       const c: string[] = [];
       c.push(`required:${isRequired}`);
