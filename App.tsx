@@ -81,57 +81,25 @@ const App: React.FC = () => {
             <div className="w-8 h-8 theme-accent-bg rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
               API
             </div>
-            <span className="text-xl font-bold tracking-tight">
-              APITest Pro
-            </span>
+
+            <div className="flex flex-col leading-tight">
+              <span className="text-xl font-bold tracking-tight">
+                APITest Pro
+              </span>
+              <span className="text-[8px] text-gray-500 font-medium">
+                Developed by Fireflink - ACOE
+              </span>
+            </div>
           </Link>
           <nav className="flex items-center gap-4">
-            {user && (
-              <div className="flex items-center gap-4 border-r theme-border pr-4 mr-2">
-                <button
-                  onClick={toggleTheme}
-                  className="p-2.5 theme-bg-main border theme-border rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold"
-                  title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
-                >
-                  <i
-                    className={`fas fa-${theme === "light" ? "moon text-indigo-400" : "sun text-amber-400"}`}
-                  ></i>
-                  <span className="capitalize">{theme} Theme</span>
-                </button>
-              </div>
-            )}
-
-            {user ? (
-              <div className="flex items-center gap-4">
-                <span className="theme-text-secondary text-sm hidden sm:inline">
-                  Hi,{" "}
-                  <span className="theme-accent-text font-semibold">
-                    {user.username}
-                  </span>
+            <div className="flex items-center gap-4">
+              <span className="theme-text-secondary text-sm hidden sm:inline">
+                Hi,{" "}
+                <span className="theme-accent-text font-semibold">
+                  {user.username}
                 </span>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-1.5 text-xs bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-all border border-red-500/20 font-bold uppercase tracking-wider"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Link
-                  to="/login"
-                  className="px-4 py-2 text-sm font-medium hover:theme-accent-text transition-colors"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="px-6 py-2 text-sm font-bold theme-accent-bg text-white rounded-xl transition-all shadow-xl shadow-indigo-500/25 hover:opacity-90"
-                >
-                  Sign Up
-                </Link>
-              </div>
-            )}
+              </span>
+            </div>
           </nav>
         </header>
         <main
