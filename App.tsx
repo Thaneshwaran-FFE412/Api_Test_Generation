@@ -2,15 +2,14 @@ import React, { useState, useEffect } from "react";
 import { HashRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import { User, SwaggerProject } from "./types";
 
 type Theme = "light" | "dark";
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>({
-    username: "Fireflink User",
-    email: "thaneshwaran.g@fireflink.com",
-  });
+  const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<SwaggerProject[]>([]);
   const [activeProject, setActiveProject] = useState<SwaggerProject | null>(
     null,
@@ -68,6 +67,11 @@ const App: React.FC = () => {
 
   if (!isInitialized) return null;
 
+  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+    if (!user) return <Navigate to="/login" replace />;
+    return <>{children}</>;
+  };
+
   return (
     <HashRouter>
       <div className="min-h-screen theme-bg-main theme-text-primary flex flex-col">
@@ -96,14 +100,37 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center gap-4">
-              <span className="theme-text-secondary text-sm hidden sm:inline">
-                Hi,{" "}
-                <span className="theme-accent-text font-semibold">
-                  {user.username}
+            {user ? (
+              <div className="flex items-center gap-4">
+                <span className="theme-text-secondary text-sm hidden sm:inline">
+                  Hi,{" "}
+                  <span className="theme-accent-text font-semibold">
+                    {user.username}
+                  </span>
                 </span>
-              </span>
-            </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-1.5 text-xs bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-all border border-red-500/20 font-bold uppercase tracking-wider"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/login"
+                  className="px-4 py-2 text-sm font-medium hover:theme-accent-text transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-6 py-2 text-sm font-bold theme-accent-bg text-white rounded-xl transition-all shadow-xl shadow-indigo-500/25 hover:opacity-90"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
           </nav>
         </header>
         <main
@@ -112,21 +139,40 @@ const App: React.FC = () => {
         >
           <Routes>
             <Route
+              path="/login"
+              element={
+                user ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                user ? (
+                  <Navigate to="/" />
+                ) : (
+                  <RegisterPage onLogin={handleLogin} />
+                )
+              }
+            />
+
+            <Route
               path="/"
               element={
-                <LandingPage
-                  user={user}
-                  projects={projects}
-                  addProject={addProject}
-                  setActiveProject={setActiveProject}
-                  deleteProject={deleteProject}
-                />
+                <ProtectedRoute>
+                  <LandingPage
+                    user={user}
+                    projects={projects}
+                    addProject={addProject}
+                    setActiveProject={setActiveProject}
+                    deleteProject={deleteProject}
+                  />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/workspace/:projectId"
               element={
-                <>
+                <ProtectedRoute>
                   {activeProject ? (
                     <WorkspacePage
                       project={activeProject}
@@ -135,7 +181,7 @@ const App: React.FC = () => {
                   ) : (
                     <Navigate to="/" />
                   )}
-                </>
+                </ProtectedRoute>
               }
             />
 
