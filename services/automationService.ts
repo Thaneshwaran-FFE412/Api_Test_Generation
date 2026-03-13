@@ -4,7 +4,7 @@ import {
   GlobalAuth,
   ApiEndpoint,
 } from "../types";
-import { generateManualTestCases } from "./geminiService";
+import { generateMTCData } from "../utils/mtcGenerator";
 
 // Helper to substitute variables {{key}} -> value
 const substituteVariables = (
@@ -21,8 +21,12 @@ export const runAutomatedTests = async (
   globalAuth: GlobalAuth,
   variables: Record<string, string>,
   endpoints: ApiEndpoint[],
-): Promise<ExecutionResult[]> => {
+): Promise<{
+  results: ExecutionResult[];
+  excelDataByTestCase: Record<string, any[]>;
+}> => {
   const results: ExecutionResult[] = [];
+  const excelDataByTestCase: Record<string, any[]> = {};
   const targetCases = allTestCases.filter((tc) => testCaseIds.includes(tc.id));
 
   for (const testCase of targetCases) {
@@ -34,114 +38,87 @@ export const runAutomatedTests = async (
     }
 
     try {
-      // 1. Generate AI Scenarios (Same as MTC Excel export)
-      const aiScenarios = await generateManualTestCases(endpoint);
+      // 1. Generate MTC Scenarios locally
+      const mtcData = generateMTCData(testCase, endpoint, 1);
+      const tcExcelData: any[] = [];
 
-      // 2. Execute each AI Scenario
-      for (const scenario of aiScenarios) {
+      // 2. Execute each MTC Scenario
+      for (let i = 0; i < mtcData.rawRows.length; i++) {
+        const rawRow = mtcData.rawRows[i];
+        const excelRow = mtcData.rows[i];
+
         try {
-          const result = await executeAiScenario(
+          const result = await executeMTCScenario(
             testCase,
-            scenario,
+            rawRow,
             globalAuth,
             variables,
           );
           results.push(result);
+
+          // Update Excel Row with actual results
+          excelRow["Actual Result"] = result.statusCode
+            ? `Status: ${result.statusCode}\n${String(result.response.body).substring(0, 100)}...`
+            : result.statusText;
+          excelRow["Status"] = result.status === "pass" ? "Pass" : "Fail";
+          tcExcelData.push(excelRow);
         } catch (e) {
-          console.error(
-            `Failed to execute scenario ${scenario.description}`,
-            e,
-          );
+          console.error(`Failed to execute scenario ${rawRow.summary}`, e);
+          excelRow["Actual Result"] = "Execution Error";
+          excelRow["Status"] = "Fail";
+          tcExcelData.push(excelRow);
         }
         // Rate limiting protection
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      excelDataByTestCase[testCase.id] = tcExcelData;
     } catch (err) {
       console.error(`Failed to generate MTCs for ${testCase.name}`, err);
     }
   }
 
-  return results;
+  return { results, excelDataByTestCase };
 };
 
-const executeAiScenario = async (
+const executeMTCScenario = async (
   tc: SavedTestCase,
-  scenario: {
-    id: string;
-    description: string;
-    inputData: string;
-    expectedResult: string;
-    type: string;
-  },
+  rawRow: any,
   globalAuth: GlobalAuth,
   variables: Record<string, string>,
 ): Promise<ExecutionResult> => {
   const startTime = performance.now();
 
-  // 1. Parse AI Input Data
-  let parsedInput: any = scenario.inputData;
-  try {
-    // Try parsing JSON if it looks like an object/array
-    if (
-      typeof scenario.inputData === "string" &&
-      (scenario.inputData.trim().startsWith("{") ||
-        scenario.inputData.trim().startsWith("["))
-    ) {
-      parsedInput = JSON.parse(scenario.inputData);
-    }
-  } catch (e) {
-    // Keep as string if parsing fails
-  }
-
-  // 2. Construct URL and Body based on Method
+  // 1. Construct URL
   let finalUrl = tc.url;
-  let body: any = undefined;
-  const method = tc.method.toUpperCase();
+  try {
+    const urlObj = new URL(substituteVariables(finalUrl, variables));
+    // Replace path params in URL
+    let path = urlObj.pathname;
+    Object.entries(rawRow.pathParams).forEach(([k, v]) => {
+      path = path.replace(`{${k}}`, String(v));
+    });
+    urlObj.pathname = path;
 
-  if (["GET", "DELETE", "HEAD", "OPTIONS"].includes(method)) {
-    // For GET-like requests, map input object to Query Params
-    try {
-      // Check if tc.url is absolute or relative.
-      // If relative, we can't easily use URL() constructor without a base, but usually tc.url is full from UI.
-      // We'll try-catch the URL construction.
-      const urlObj = new URL(substituteVariables(finalUrl, variables));
-
-      if (typeof parsedInput === "object" && parsedInput !== null) {
-        Object.entries(parsedInput).forEach(([k, v]) => {
-          if (v !== null && v !== undefined) {
-            urlObj.searchParams.set(k, String(v));
-          }
-        });
+    // Add query params
+    Object.entries(rawRow.queryParams).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== "") {
+        urlObj.searchParams.set(k, String(v));
       }
-      finalUrl = urlObj.toString();
-    } catch (e) {
-      // Fallback for relative URLs or malformed URLs: just append query string manually if simple
-      console.warn("Could not parse URL object for param injection", e);
-    }
-  } else {
-    // For POST/PUT/PATCH, Use inputData as Body
-    // If the AI returned a string, use it. If object, stringify it.
-    if (typeof parsedInput === "object") {
-      body = JSON.stringify(parsedInput);
-    } else {
-      body = String(parsedInput);
-    }
+    });
+    finalUrl = urlObj.toString();
+  } catch (e) {
+    console.warn("Could not parse URL object", e);
   }
 
-  // 3. Prepare Headers
+  // 2. Prepare Headers
   const headers = new Headers();
-  // Inherit headers from saved test case
-  tc.headers.forEach((h) => {
-    if (h.enabled && h.key)
-      headers.append(h.key, substituteVariables(h.value, variables));
+  Object.entries(rawRow.headerParams).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== "") {
+      headers.append(k, substituteVariables(String(v), variables));
+    }
   });
 
-  // Ensure Content-Type is JSON if we are sending JSON body
-  if (body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  // Apply Global Auth
+  // Apply Global Auth if needed (or use rawRow.auth if we parsed it, but globalAuth is safer)
   if (globalAuth.type === "bearer" && globalAuth.bearerToken) {
     headers.set("Authorization", `Bearer ${globalAuth.bearerToken}`);
   } else if (
@@ -159,13 +136,18 @@ const executeAiScenario = async (
     headers.set("Authorization", `Basic ${creds}`);
   }
 
+  let body = rawRow.payload;
+  if (body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const plainHeaders: Record<string, string> = {};
   headers.forEach((v, k) => {
     plainHeaders[k] = v;
   });
 
   const proxyPayload = {
-    method: method,
+    method: rawRow.httpMethod,
     url: finalUrl,
     headers: plainHeaders,
     data: body,
@@ -199,14 +181,22 @@ const executeAiScenario = async (
       }
     }
 
-    // Determine Pass/Fail based on AI Scenario Type
-    const isPositive = scenario.type.toLowerCase().includes("positive");
-
-    if (isPositive) {
-      status = statusCode >= 200 && statusCode < 300 ? "pass" : "fail";
+    // Determine Pass/Fail based on Expected Status Code
+    let expectedStatuses = String(rawRow.expected)
+      .split("/")
+      .map((s) => parseInt(s.trim()));
+    if (expectedStatuses.includes(statusCode)) {
+      status = "pass";
+    } else if (
+      statusCode >= 200 &&
+      statusCode < 300 &&
+      expectedStatuses.some((s) => s >= 200 && s < 300)
+    ) {
+      status = "pass"; // Allow any 2xx if expected is 2xx
+    } else if (statusCode >= 400 && expectedStatuses.some((s) => s >= 400)) {
+      status = "pass"; // Allow any 4xx if expected is 4xx
     } else {
-      // Negative/Boundary: Pass if we get an error code (handled gracefully)
-      status = statusCode >= 400 ? "pass" : "fail";
+      status = "fail";
     }
   } catch (e: any) {
     responseBody = { error: e.message };
@@ -218,15 +208,15 @@ const executeAiScenario = async (
   return {
     id: Math.random().toString(),
     testCaseId: tc.id,
-    testCaseName: `${tc.name} - ${scenario.description}`,
+    testCaseName: `${tc.name} - ${rawRow.set} - ${rawRow.summary}`,
     status: status as "pass" | "fail" | "error",
     statusCode,
     statusText,
     responseTime: Math.round(endTime - startTime),
     request: {
-      method: method,
+      method: rawRow.httpMethod,
       url: finalUrl,
-      headers: {},
+      headers: plainHeaders,
       body: body,
     },
     response: {
@@ -236,10 +226,10 @@ const executeAiScenario = async (
     assertionResults: [
       {
         assertion: {
-          id: "ai-check",
+          id: "mtc-check",
           type: "status_code",
-          operator: isPositive(scenario.type) ? "eq" : "gte",
-          expected: isPositive(scenario.type) ? "2xx" : "4xx",
+          operator: "eq",
+          expected: String(rawRow.expected),
         },
         passed: status === "pass",
         actual: statusCode.toString(),
@@ -248,9 +238,4 @@ const executeAiScenario = async (
     capturedData: [],
     timestamp: Date.now(),
   };
-};
-
-const isPositive = (type: string) => {
-  const t = type.toLowerCase();
-  return t.includes("positive") || t.includes("happy");
 };

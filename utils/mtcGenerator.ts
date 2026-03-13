@@ -263,6 +263,7 @@ export const generateMTCData = (
   slNoStart: number,
 ) => {
   const allRows: any[] = [];
+  const rawRows: any[] = [];
   let slNo = slNoStart;
 
   const reqName = tc.name;
@@ -336,6 +337,20 @@ export const generateMTCData = (
       "Actual Result": "",
       Status: "",
       Comments: "",
+    });
+
+    rawRows.push({
+      slNo: slNo - 1,
+      endPoint: resolvedEndPoint,
+      set,
+      summary,
+      httpMethod,
+      pathParams,
+      queryParams,
+      headerParams,
+      auth,
+      payload,
+      expected,
     });
   };
 
@@ -680,5 +695,5 @@ export const generateMTCData = (
     });
   }
 
-  return { rows: allRows, nextSlNo: slNo };
+  return { rows: allRows, rawRows, nextSlNo: slNo };
 };

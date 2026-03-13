@@ -18,7 +18,6 @@ export const generateManualTestCases = async (endpoint: ApiEndpoint): Promise<Ma
 
   try {
     const response = await ai.models.generateContent({
-      // Use gemini-3-pro-preview for complex text tasks like generating code or test logic.
       model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {

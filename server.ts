@@ -4,6 +4,7 @@ import axios from "axios";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import FormData from "form-data";
+import https from "https";
 
 async function startServer() {
   const app = express();
@@ -50,6 +51,7 @@ async function startServer() {
         data: finalData,
         validateStatus: () => true, // Resolve promise for all HTTP status codes
         timeout: 30000,
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
       });
 
       res.status(response.status).json({

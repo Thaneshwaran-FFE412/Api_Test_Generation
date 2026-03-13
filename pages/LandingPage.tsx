@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
-import yaml from "js-yaml";
 
 interface LandingPageProps {
   user: User | null;
@@ -70,15 +69,9 @@ const LandingPage: React.FC<LandingPageProps> = ({
   const processSpecString = (rawSpec: string, fileName?: string) => {
     let spec: any;
     try {
-      // Try JSON first
       spec = JSON.parse(rawSpec);
     } catch (e) {
-      try {
-        // Try YAML
-        spec = yaml.load(rawSpec);
-      } catch (e2) {
-        throw new Error("Invalid format: Spec must be JSON or YAML");
-      }
+      throw new Error("Invalid format: Spec must be a valid JSON string");
     }
 
     if (!spec || typeof spec !== "object") {
@@ -107,13 +100,38 @@ const LandingPage: React.FC<LandingPageProps> = ({
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch(url);
-      const rawText = await response.text();
+      const response = await fetch("/api/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "GET", url }),
+      });
+
+      const proxyRes = await response.json();
+
+      if (proxyRes.error) {
+        throw new Error(
+          proxyRes.error + (proxyRes.details ? `: ${proxyRes.details}` : ""),
+        );
+      }
+
+      if (proxyRes.status >= 400) {
+        throw new Error(
+          `Failed to load Swagger from URL: HTTP ${proxyRes.status} ${proxyRes.statusText}`,
+        );
+      }
+
+      let rawText = proxyRes.data;
+      if (typeof rawText === "object") {
+        rawText = JSON.stringify(rawText);
+      } else if (typeof rawText !== "string") {
+        rawText = String(rawText);
+      }
+
       processSpecString(rawText);
     } catch (err: any) {
       setError(
         err.message ||
-          "Failed to load Swagger from URL. Ensure the URL is accessible and CORS is enabled.",
+          "Failed to load Swagger from URL. Ensure the URL is accessible.",
       );
     } finally {
       setIsLoading(false);
@@ -172,7 +190,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
               </button>
             </div>
             <p className="text-[10px] theme-text-secondary italic">
-              Supports JSON and YAML formats
+              Supports JSON format
             </p>
           </div>
           {error && <p className="text-red-400 mt-2 text-sm">{error}</p>}
@@ -186,13 +204,13 @@ const LandingPage: React.FC<LandingPageProps> = ({
           <label className="block w-full cursor-pointer theme-bg-main border-2 border-dashed theme-border hover:border-emerald-500/50 rounded-lg py-12 text-center transition-all">
             <input
               type="file"
-              accept=".json,.yaml,.yml"
+              accept=".json"
               onChange={handleFileUpload}
               className="hidden"
             />
             <i className="fas fa-cloud-upload-alt text-3xl mb-4 theme-text-secondary opacity-50"></i>
             <p className="theme-text-secondary">
-              Click to upload or drag and drop JSON/YAML
+              Click to upload or drag and drop JSON
             </p>
           </label>
         </div>
