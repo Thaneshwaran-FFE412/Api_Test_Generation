@@ -82,6 +82,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [setting, setSetting] = useState<AppSettings>({
     tlsVerification: true,
     requestTimeout: 30000,
+    expectedStatusCode: "200",
     maxRedirects: 2,
     autoRedirectDefault: true,
     redirectOriginalMethod: false,
@@ -1034,7 +1035,20 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
       realResult.assertionResults = evaluateAssertions(realResult, assertions);
       const allPassed = realResult.assertionResults.every((r) => r.passed);
-      realResult.status = allPassed && response.ok ? "pass" : "fail";
+
+      const statusAssertion = realResult.assertionResults.find(
+        (r) => r.assertion.type === "status_code",
+      );
+      const expectedStatus = setting.expectedStatusCode;
+      const actualStatus = realResult.statusCode;
+
+      const statusMatches = expectedStatus
+        ? String(actualStatus) === expectedStatus
+        : statusAssertion
+          ? statusAssertion.passed
+          : response.ok;
+
+      realResult.status = allPassed && statusMatches ? "pass" : "fail";
 
       setExecutionResult(realResult);
     } catch (err: any) {
@@ -1746,6 +1760,29 @@ const Workbench: React.FC<WorkbenchProps> = ({
                     <p className="text-[10px] theme-text-secondary leading-relaxed">
                       To set how long a request should wait for a response
                       before timing out. To never time out, set to 0.
+                    </p>
+                  </div>
+
+                  {/* Expected Status Code */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold theme-text-primary">
+                      Expected Status Code
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        value={setting.expectedStatusCode || ""}
+                        onChange={(e) =>
+                          setSetting({
+                            ...setting,
+                            expectedStatusCode: e.target.value,
+                          })
+                        }
+                        className="theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary w-32 outline-none focus:ring-2 focus:ring-indigo-500/50"
+                      />
+                    </div>
+                    <p className="text-[10px] theme-text-secondary leading-relaxed">
+                      The expected HTTP status code for the request.
                     </p>
                   </div>
 
@@ -2761,7 +2798,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
           ) {
             isRequired = true;
           } else {
-            isRequired = false;
+            isRequired = true;
           }
           current = current.properties ? current.properties[part] : undefined;
         }

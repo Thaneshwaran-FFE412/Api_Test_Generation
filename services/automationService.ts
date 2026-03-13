@@ -61,11 +61,23 @@ export const runAutomatedTests = async (
             ? `Status: ${result.statusCode}\n${String(result.response.body).substring(0, 100)}...`
             : result.statusText;
           excelRow["Status"] = result.status === "pass" ? "Pass" : "Fail";
+
+          if (result.status === "pass") {
+            excelRow["Comments"] = "Test case passed successfully.";
+          } else if (result.status === "fail") {
+            excelRow["Comments"] =
+              `Test case failed. Expected status code: ${rawRow.expected}, Actual: ${result.statusCode}`;
+          } else {
+            excelRow["Comments"] = `Execution error: ${result.response.body}`;
+          }
+
           tcExcelData.push(excelRow);
         } catch (e) {
           console.error(`Failed to execute scenario ${rawRow.summary}`, e);
           excelRow["Actual Result"] = "Execution Error";
           excelRow["Status"] = "Fail";
+          excelRow["Comments"] =
+            `Execution error: ${e instanceof Error ? e.message : String(e)}`;
           tcExcelData.push(excelRow);
         }
         // Rate limiting protection
@@ -187,14 +199,6 @@ const executeMTCScenario = async (
       .map((s) => parseInt(s.trim()));
     if (expectedStatuses.includes(statusCode)) {
       status = "pass";
-    } else if (
-      statusCode >= 200 &&
-      statusCode < 300 &&
-      expectedStatuses.some((s) => s >= 200 && s < 300)
-    ) {
-      status = "pass"; // Allow any 2xx if expected is 2xx
-    } else if (statusCode >= 400 && expectedStatuses.some((s) => s >= 400)) {
-      status = "pass"; // Allow any 4xx if expected is 4xx
     } else {
       status = "fail";
     }

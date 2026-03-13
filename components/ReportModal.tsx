@@ -30,7 +30,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ results, onClose }) => {
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <i className="fas fa-robot text-indigo-400"></i>
-              Automated Fuzzing Report
+              Fireflink AI automation Report
             </h2>
             <p className="text-slate-500 text-sm mt-1">Generated {results.length} permutations at {new Date().toLocaleString()}</p>
           </div>

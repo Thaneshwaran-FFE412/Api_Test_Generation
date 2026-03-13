@@ -85,6 +85,7 @@ export interface ApiEndpoint {
 export interface AppSettings {
   tlsVerification: boolean;
   requestTimeout: number;
+  expectedStatusCode?: string;
   maxRedirects: number;
   autoRedirectDefault: boolean;
   redirectOriginalMethod: boolean;
@@ -197,4 +198,3 @@ export interface ManualTestCase {
   expectedResult: string;
   type: string;
 }
-  

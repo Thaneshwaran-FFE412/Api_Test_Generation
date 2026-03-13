@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
+import yaml from "js-yaml";
 
 interface LandingPageProps {
   user: User | null;
@@ -66,12 +67,22 @@ const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const processSpecString = (rawSpec: string, fileName?: string) => {
+  const processSpecString = (
+    rawSpec: string,
+    fileName?: string,
+    isYaml: boolean = false,
+  ) => {
     let spec: any;
     try {
-      spec = JSON.parse(rawSpec);
+      if (isYaml) {
+        spec = yaml.load(rawSpec);
+      } else {
+        spec = JSON.parse(rawSpec);
+      }
     } catch (e) {
-      throw new Error("Invalid format: Spec must be a valid JSON string");
+      throw new Error(
+        `Invalid format: Spec must be a valid ${isYaml ? "YAML or JSON" : "JSON"} string`,
+      );
     }
 
     if (!spec || typeof spec !== "object") {
@@ -146,7 +157,9 @@ const LandingPage: React.FC<LandingPageProps> = ({
     reader.onload = (event) => {
       try {
         const rawText = event.target?.result as string;
-        processSpecString(rawText, file.name);
+        const isYaml =
+          file.name.endsWith(".yaml") || file.name.endsWith(".yml");
+        processSpecString(rawText, file.name, isYaml);
       } catch (err: any) {
         setError(err.message || "Invalid Swagger/OpenAPI file.");
       }
@@ -210,7 +223,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             />
             <i className="fas fa-cloud-upload-alt text-3xl mb-4 theme-text-secondary opacity-50"></i>
             <p className="theme-text-secondary">
-              Click to upload or drag and drop JSON or YAML
+              Click to upload or drag and drop JSON/YAML
             </p>
           </label>
         </div>
