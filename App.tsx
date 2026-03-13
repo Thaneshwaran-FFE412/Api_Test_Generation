@@ -2,14 +2,15 @@ import React, { useState, useEffect } from "react";
 import { HashRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import WorkspacePage from "./pages/WorkspacePage";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
 import { User, SwaggerProject } from "./types";
 
 type Theme = "light" | "dark";
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>({
+    username: "Fireflink User",
+    email: "fireflink.com",
+  });
   const [projects, setProjects] = useState<SwaggerProject[]>([]);
   const [activeProject, setActiveProject] = useState<SwaggerProject | null>(
     null,
@@ -138,23 +139,6 @@ const App: React.FC = () => {
           className="flex flex-col"
         >
           <Routes>
-            <Route
-              path="/login"
-              element={
-                user ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                user ? (
-                  <Navigate to="/" />
-                ) : (
-                  <RegisterPage onLogin={handleLogin} />
-                )
-              }
-            />
-
             <Route
               path="/"
               element={
