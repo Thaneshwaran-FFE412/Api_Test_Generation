@@ -204,13 +204,13 @@ const LandingPage: React.FC<LandingPageProps> = ({
           <label className="block w-full cursor-pointer theme-bg-main border-2 border-dashed theme-border hover:border-emerald-500/50 rounded-lg py-12 text-center transition-all">
             <input
               type="file"
-              accept=".json"
+              accept=".json,.yaml,.yml"
               onChange={handleFileUpload}
               className="hidden"
             />
             <i className="fas fa-cloud-upload-alt text-3xl mb-4 theme-text-secondary opacity-50"></i>
             <p className="theme-text-secondary">
-              Click to upload or drag and drop JSON
+              Click to upload or drag and drop JSON or YAML
             </p>
           </label>
         </div>
