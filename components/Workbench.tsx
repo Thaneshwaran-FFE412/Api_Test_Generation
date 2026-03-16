@@ -1450,7 +1450,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                       </button>
                     )}
                     <span className="text-[10px] theme-text-secondary italic font-medium">
-                      Variables supported via {"{{key}}"}
+                      Variables supported via {"$"}
                     </span>
                   </div>
                   <VariableInput
