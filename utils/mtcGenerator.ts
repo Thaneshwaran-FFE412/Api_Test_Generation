@@ -351,6 +351,8 @@ export const generateMTCData = (
       auth,
       payload,
       expected,
+      postResponseScript: tc.postResponseScript,
+      postResponse: tc.captures,
     });
   };
 

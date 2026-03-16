@@ -44,6 +44,10 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [reportData, setReportData] = useState<ExecutionResult[] | null>(null);
+  const [excelDataByTestCase, setExcelDataByTestCase] = useState<Record<
+    string,
+    any[]
+  > | null>(null);
   const [isExecutingAutomation, setIsExecutingAutomation] = useState(false);
   const [isGeneratingMTC, setIsGeneratingMTC] = useState(false);
 
@@ -155,6 +159,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       );
 
       setReportData(results);
+      setExcelDataByTestCase(excelDataByTestCase);
       const workbook = XLSX.utils.book_new();
       let hasData = false;
 
@@ -365,14 +370,47 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       const workbook = XLSX.utils.book_new();
       let hasData = false;
 
+      const getExecutionPlan = (
+        tc: SavedTestCase,
+        visited = new Set<string>(),
+      ): SavedTestCase[] => {
+        if (visited.has(tc.id)) return [];
+        visited.add(tc.id);
+
+        let plan: SavedTestCase[] = [];
+        if (tc.dependentOn) {
+          const dep = project.savedTestCases.find(
+            (t) => t.id === tc.dependentOn,
+          );
+          if (dep) {
+            plan = plan.concat(getExecutionPlan(dep, visited));
+          }
+        }
+        plan.push(tc);
+        return plan;
+      };
+
+      const testCasesToProcess: SavedTestCase[] = [];
+      const processedIds = new Set<string>();
+
       for (const id of ids) {
         const tc = project.savedTestCases.find((t) => t.id === id);
         if (!tc) continue;
 
+        const plan = getExecutionPlan(tc);
+        for (const planTc of plan) {
+          if (!processedIds.has(planTc.id)) {
+            testCasesToProcess.push(planTc);
+            processedIds.add(planTc.id);
+          }
+        }
+      }
+
+      for (const tc of testCasesToProcess) {
         const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
         if (!endpoint) continue;
 
-        const result = generateMTCData(tc, endpoint, 1);
+        const result = generateMTCData(tc, endpoint, 1, variables);
         let sheetRows = result.rows;
 
         if (sheetRows.length > 0) {
@@ -672,8 +710,17 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
         </div>
       </div>
 
-      {reportData && (
-        <ReportModal results={reportData} onClose={() => setReportData(null)} />
+      {reportData && excelDataByTestCase && (
+        <ReportModal
+          results={reportData}
+          project={project}
+          ids={Object.keys(excelDataByTestCase)}
+          excelDataByTestCase={excelDataByTestCase}
+          onClose={() => {
+            setReportData(null);
+            setExcelDataByTestCase(null);
+          }}
+        />
       )}
     </div>
   );
