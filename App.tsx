@@ -68,11 +68,6 @@ const App: React.FC = () => {
 
   if (!isInitialized) return null;
 
-  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    if (!user) return <Navigate to="/login" replace />;
-    return <>{children}</>;
-  };
-
   return (
     <HashRouter>
       <div className="min-h-screen theme-bg-main theme-text-primary flex flex-col">
@@ -92,6 +87,18 @@ const App: React.FC = () => {
             </div>
           </Link>
           <nav className="flex items-center gap-4">
+            <div className="flex items-center gap-4 border-r theme-border pr-4 mr-2">
+              <button
+                onClick={toggleTheme}
+                className="p-2.5 theme-bg-main border theme-border rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold"
+                title={`Switch to ${theme === "light" ? "Dark" : "Light"} Mode`}
+              >
+                <i
+                  className={`fas fa-${theme === "light" ? "moon text-indigo-400" : "sun text-amber-400"}`}
+                ></i>
+                <span className="capitalize">{theme} Theme</span>
+              </button>
+            </div>
             <div className="flex items-center gap-4">
               <span className="theme-text-secondary text-sm hidden sm:inline">
                 Hi,{" "}
@@ -110,21 +117,19 @@ const App: React.FC = () => {
             <Route
               path="/"
               element={
-                <ProtectedRoute>
-                  <LandingPage
-                    user={user}
-                    projects={projects}
-                    addProject={addProject}
-                    setActiveProject={setActiveProject}
-                    deleteProject={deleteProject}
-                  />
-                </ProtectedRoute>
+                <LandingPage
+                  user={user}
+                  projects={projects}
+                  addProject={addProject}
+                  setActiveProject={setActiveProject}
+                  deleteProject={deleteProject}
+                />
               }
             />
             <Route
               path="/workspace/:projectId"
               element={
-                <ProtectedRoute>
+                <>
                   {activeProject ? (
                     <WorkspacePage
                       project={activeProject}
@@ -133,7 +138,7 @@ const App: React.FC = () => {
                   ) : (
                     <Navigate to="/" />
                   )}
-                </ProtectedRoute>
+                </>
               }
             />
 

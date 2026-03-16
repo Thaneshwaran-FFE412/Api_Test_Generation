@@ -50,6 +50,9 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
   > | null>(null);
   const [isExecutingAutomation, setIsExecutingAutomation] = useState(false);
   const [isGeneratingMTC, setIsGeneratingMTC] = useState(false);
+  const [generatedMTCData, setGeneratedMTCData] = useState<
+    Record<string, { rows: any[]; rawRows: any[] }>
+  >({});
 
   useEffect(() => {
     localStorage.setItem(
@@ -405,12 +408,14 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
           }
         }
       }
+      const newGeneratedMTCData = { ...generatedMTCData };
 
       for (const tc of testCasesToProcess) {
         const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
         if (!endpoint) continue;
 
         const result = generateMTCData(tc, endpoint, 1, variables);
+        newGeneratedMTCData[tc.id] = result;
         let sheetRows = result.rows;
 
         if (sheetRows.length > 0) {
@@ -569,6 +574,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       }
 
       if (hasData) {
+        setGeneratedMTCData(newGeneratedMTCData);
         XLSX.writeFile(
           workbook,
           `${project.name.replace(/\s+/g, "_")}_MTC.xlsx`,
@@ -667,6 +673,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               isExecuting={isExecutingAutomation}
               isGeneratingMTC={isGeneratingMTC}
               project={project}
+              generatedMTCData={generatedMTCData}
             />
           </div>
 

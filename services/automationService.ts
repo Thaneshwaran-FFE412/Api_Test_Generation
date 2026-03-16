@@ -31,6 +31,7 @@ export const runAutomatedTests = async (
   globalAuth: GlobalAuth,
   variables: Record<string, string>,
   endpoints: ApiEndpoint[],
+  generatedMTCData: Record<string, { rows: any[]; rawRows: any[] }>,
 ): Promise<{
   results: ExecutionResult[];
   excelDataByTestCase: Record<string, any[]>;
