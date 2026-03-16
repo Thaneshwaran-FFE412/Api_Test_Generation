@@ -190,9 +190,6 @@ const ReportModal: React.FC<ReportModalProps> = ({ results, onClose }) => {
         </div>
 
         <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-end gap-3">
-           <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-all border border-slate-700">
-             <i className="fas fa-file-pdf mr-2"></i> Download Report
-           </button>
            <button onClick={onClose} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-bold transition-all">
              Done
            </button>

@@ -368,8 +368,16 @@ export const generateMTCData = (
   );
 
   // 2. HTTP Method Test
-  const allMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
-  allMethods.forEach((m) => {
+  let methodsToTest: string[] = [];
+  if (method === "GET") {
+    methodsToTest = ["POST", "PUT"];
+  } else if (method === "POST" || method === "PUT") {
+    methodsToTest = ["GET"];
+  } else {
+    methodsToTest = ["GET"];
+  }
+
+  methodsToTest.forEach((m) => {
     if (m !== method) {
       addRow(
         "HTTP Method Test",
