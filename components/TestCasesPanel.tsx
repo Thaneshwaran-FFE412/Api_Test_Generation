@@ -253,7 +253,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
       case "DELETE":
         return "text-rose-500 bg-rose-500/10 border-rose-500/20";
       default:
-        return "text-slate-500 bg-slate-500/10 border-slate-500/20";
+        return "theme-text-secondary theme-bg-workbench border theme-border";
     }
   };
 
@@ -269,7 +269,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
       {/* Header & Actions */}
-      <div className="p-3 border-b theme-border bg-white/5 flex flex-col gap-3 shrink-0">
+      <div className="p-3 border-b theme-border theme-bg-main flex flex-col gap-3 shrink-0">
         <div className="flex items-center justify-end">
           <span className="text-[10px] theme-bg-main px-2 py-0.5 rounded-full border theme-border theme-text-secondary font-mono">
             {selectedIds.size} / {testCases.length} Selected
@@ -383,10 +383,10 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                 return (
                   <div
                     key={group}
-                    className="border theme-border rounded-lg overflow-hidden bg-white/[0.02]"
+                    className="border theme-border rounded-lg overflow-hidden theme-bg-workbench/20"
                   >
                     {/* Group Header */}
-                    <div className="flex items-center gap-2 p-2 bg-white/5 hover:bg-white/10 transition-colors select-none">
+                    <div className="flex items-center gap-2 p-2 theme-bg-surface/50 hover:theme-bg-surface transition-colors select-none">
                       <button
                         onClick={() => toggleGroupExpand(group)}
                         className="w-4 h-4 flex items-center justify-center text-xs theme-text-secondary hover:text-white"
@@ -419,11 +419,11 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
 
                     {/* Group Items */}
                     {isExpanded && (
-                      <div className="bg-black/10">
+                      <div className="theme-bg-workbench/30">
                         {groupItems.map((tc) => (
                           <div
                             key={tc.id}
-                            className={`flex flex-col p-2 pl-9 hover:bg-white/5 transition-colors border-l-2 ${selectedIds.has(tc.id) ? "border-indigo-500 bg-indigo-500/5" : "border-transparent"}`}
+                            className={`flex flex-col p-2 pl-9 hover:theme-bg-surface transition-colors border-l-2 ${selectedIds.has(tc.id) ? "border-indigo-500 bg-indigo-500/5" : "border-transparent"}`}
                           >
                             <div className="flex items-center gap-3">
                               <input
@@ -432,7 +432,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                 checked={selectedIds.has(tc.id)}
                                 onChange={() => toggleItemSelection(tc.id)}
                               />
-                              <div className="text-[10px] font-mono theme-text-secondary bg-white/5 px-1.5 py-0.5 rounded border theme-border">
+                              <div className="text-[10px] font-mono theme-text-secondary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border">
                                 {tc.id}
                               </div>
                               <div
@@ -452,7 +452,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                 <span className="text-[9px] font-black theme-text-secondary uppercase tracking-widest">
                                   Pre-conditions:
                                 </span>
-                                <div className="text-[10px] font-mono theme-text-primary bg-white/5 px-1.5 py-0.5 rounded border theme-border w-fit">
+                                <div className="text-[10px] font-mono theme-text-primary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border w-fit">
                                   {tc.dependentOn}
                                 </div>
                               </div>

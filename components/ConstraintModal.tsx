@@ -95,12 +95,14 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-          <h3 className="text-sm font-bold text-slate-200">Edit Constraints</h3>
+      <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+        <div className="p-4 border-b theme-border flex justify-between items-center theme-bg-workbench/50">
+          <h3 className="text-sm font-bold theme-text-primary">
+            Edit Constraints
+          </h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="theme-text-secondary hover:theme-text-primary transition-colors"
           >
             <i className="fas fa-times"></i>
           </button>
@@ -108,7 +110,7 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
 
         <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
           {constraints.length === 0 ? (
-            <div className="text-center text-slate-500 text-xs py-4">
+            <div className="text-center theme-text-secondary text-xs py-4">
               No constraints added yet.
             </div>
           ) : (
@@ -117,7 +119,7 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
                 <select
                   value={c.key}
                   onChange={(e) => handleChange(idx, "key", e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 w-1/3"
+                  className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text w-1/3"
                 >
                   {CONSTRAINT_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
@@ -133,7 +135,7 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
                   <select
                     value={c.value}
                     onChange={(e) => handleChange(idx, "value", e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 flex-1"
+                    className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text flex-1"
                   >
                     <option value="true">true</option>
                     <option value="false">false</option>
@@ -142,7 +144,7 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
                   <select
                     value={c.value}
                     onChange={(e) => handleChange(idx, "value", e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 flex-1"
+                    className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text flex-1"
                   >
                     <option value="string">string</option>
                     <option value="number">number</option>
@@ -157,14 +159,14 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
                     value={c.value}
                     onChange={(e) => handleChange(idx, "value", e.target.value)}
                     placeholder="Value"
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 flex-1"
+                    className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text flex-1"
                   />
                 ) : (
                   <input
                     value={c.value}
                     onChange={(e) => handleChange(idx, "value", e.target.value)}
                     placeholder={c.key === "enum" ? "e.g. A|B|C" : "Value"}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500 flex-1"
+                    className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text flex-1"
                   />
                 )}
 
@@ -179,22 +181,22 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
           )}
           <button
             onClick={handleAdd}
-            className="text-xs text-indigo-400 hover:text-indigo-300 font-bold"
+            className="text-xs theme-accent-text hover:theme-accent-text/80 font-bold"
           >
             + Add Constraint
           </button>
         </div>
 
-        <div className="p-4 border-t border-slate-700 bg-slate-800/50 flex justify-end gap-3">
+        <div className="p-4 border-t theme-border theme-bg-workbench/50 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+            className="px-4 py-2 text-xs font-bold theme-text-secondary hover:theme-text-primary transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20"
+            className="px-4 py-2 text-xs font-bold theme-accent-bg hover:theme-accent-hover text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20"
           >
             Save Constraints
           </button>

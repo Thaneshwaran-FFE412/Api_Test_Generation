@@ -33,7 +33,7 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="p-4 border-b theme-border bg-white/5">
+      <div className="p-4 border-b theme-border theme-bg-main">
         <form
           onSubmit={handleAdd}
           className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end"
@@ -45,7 +45,7 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
             <input
               type="text"
               placeholder="e.g. baseUrl"
-              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none font-mono theme-text-primary transition-all"
+              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-[#71347B]/50 outline-none font-mono theme-text-primary transition-all"
               value={newVarKey}
               onChange={(e) => setNewVarKey(e.target.value)}
             />
@@ -57,7 +57,7 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
             <input
               type="text"
               placeholder="Value"
-              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500/50 outline-none font-mono theme-text-primary transition-all"
+              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-[#71347B]/50 outline-none font-mono theme-text-primary transition-all"
               value={newVarValue}
               onChange={(e) => setNewVarValue(e.target.value)}
             />
@@ -92,10 +92,10 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
               {Object.entries(variables).map(([key, value]) => (
                 <div
                   key={key}
-                  className="grid grid-cols-[1fr_1fr_40px] gap-4 items-center theme-bg-surface/30 p-2 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all group"
+                  className="grid grid-cols-[1fr_1fr_40px] gap-4 items-center theme-bg-surface/30 p-2 rounded-xl border border-transparent hover:border-[#71347B]/30 transition-all group"
                 >
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] font-bold text-indigo-400 font-mono truncate">
+                    <span className="text-[10px] font-bold text-[#71347B] font-mono truncate">
                       ${key}
                     </span>
                     <span className="text-[8px] theme-text-secondary font-mono opacity-50 truncate">
@@ -106,7 +106,7 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
                     type="text"
                     value={value}
                     onChange={(e) => handleUpdate(key, e.target.value)}
-                    className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                    className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-[#71347B]/50 outline-none transition-all"
                   />
                   <div className="flex justify-center">
                     <button
@@ -123,11 +123,11 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
         )}
       </div>
 
-      <div className="p-4 bg-indigo-500/5 border-t theme-border">
+      <div className="p-4 bg-[#71347B]/5 border-t theme-border">
         <p className="text-[9px] theme-text-secondary leading-relaxed font-medium italic">
-          <i className="fas fa-info-circle mr-1.5 text-indigo-400"></i>
+          <i className="fas fa-info-circle mr-1.5 text-[#71347B]"></i>
           Variables are shared across all requests. Use{" "}
-          <span className="text-indigo-400 font-bold">$key</span> to reference
+          <span className="text-[#71347B] font-bold">$key</span> to reference
           them.
         </p>
       </div>

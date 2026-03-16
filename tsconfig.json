@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "jsxImportSource": "react",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "module": "ESNext",

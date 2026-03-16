@@ -39,16 +39,16 @@ const AuthHeader: React.FC<AuthHeaderProps> = ({ auth, setAuth, compact }) => {
           )}
         </div>
 
-        <div className="flex bg-slate-800/50 p-0.5 rounded-lg border border-slate-700 shrink-0">
+        <div className="flex theme-bg-workbench p-0.5 rounded-lg border theme-border shrink-0">
           <button
             onClick={() => setAuth({ ...auth, mode: "static" })}
-            className={`px-3 py-1 text-[9px] font-black uppercase rounded transition-all ${(!auth.mode || auth.mode === "static") ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+            className={`px-3 py-1 text-[9px] font-black uppercase rounded transition-all ${!auth.mode || auth.mode === "static" ? "bg-indigo-600 text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
           >
             Static
           </button>
           <button
             onClick={() => setAuth({ ...auth, mode: "dynamic" })}
-            className={`px-3 py-1 text-[9px] font-black uppercase rounded transition-all ${auth.mode === "dynamic" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+            className={`px-3 py-1 text-[9px] font-black uppercase rounded transition-all ${auth.mode === "dynamic" ? "bg-indigo-600 text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
           >
             Dynamic
           </button>

@@ -1,0 +1,104 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Default Dark Theme (Deep Slate) */
+  --bg-main: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-workbench: #020617;
+  --border-color: #523355;
+  --text-primary: #f8fafc;
+  --text-secondary: #b594b8;
+  --accent: #71347b;
+  --accent-hover: #5c2964;
+  --input-bg: #0f172a;
+}
+
+[data-theme="light"] {
+  /* Clean Light Theme */
+  --bg-main: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-workbench: #f8fafc;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #7b648b;
+  --accent: #71347b;
+  --accent-hover: #5c2964;
+  --input-bg: #f8fafc;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.theme-bg-main {
+  background-color: var(--bg-main);
+}
+.theme-bg-surface {
+  background-color: var(--bg-surface);
+}
+.theme-bg-workbench {
+  background-color: var(--bg-workbench);
+}
+.theme-border {
+  border-color: var(--border-color);
+}
+.theme-text-primary {
+  color: var(--text-primary);
+}
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+.theme-accent-bg {
+  background-color: var(--accent);
+}
+.theme-accent-text {
+  color: var(--accent);
+}
+
+.mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Better scrollbars for both themes */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Custom Input styles to respect theme */
+input,
+select,
+textarea {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* Fix checkbox and select accent color */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+select {
+  accent-color: var(--accent);
+}
+
+.backdrop-blur-md {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

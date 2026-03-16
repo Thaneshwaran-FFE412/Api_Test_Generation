@@ -60,10 +60,6 @@ const App: React.FC = () => {
     if (activeProject?.id === id) setActiveProject(null);
   };
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
-
   if (!isInitialized) return null;
 
   return (
@@ -79,7 +75,7 @@ const App: React.FC = () => {
           </Link>
           <nav className="flex items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-8 h-8 theme-accent-bg rounded-full flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+              <div className="w-8 h-8 bg-[#71347B] rounded-full cursor-pointer flex items-center justify-center text-white shadow-lg">
                 F
               </div>
             </div>

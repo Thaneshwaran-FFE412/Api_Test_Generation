@@ -1165,7 +1165,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     <div className="flex flex-col h-full overflow-hidden relative">
       <div className="p-4 border-b theme-border flex gap-2 theme-bg-surface/30 items-center shrink-0">
         <div
-          className={`px-4 py-1.5 text-white font-black rounded-lg text-xs uppercase shadow-sm ${method === "GET" ? "bg-emerald-600" : method === "POST" ? "bg-indigo-600" : "bg-amber-600"}`}
+          className={`px-4 py-1.5 text-white font-black rounded-lg text-xs uppercase shadow-sm ${method === "GET" ? "bg-emerald-600" : method === "POST" ? "theme-accent-bg" : "bg-amber-600"}`}
         >
           {method}
         </div>
@@ -1228,7 +1228,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         <button
           onClick={handleSave}
           disabled={!hasRunRequest}
-          className={`theme-bg-surface border theme-border theme-text-primary px-5 py-2 rounded-lg text-xs font-bold transition-all ${!hasRunRequest ? "opacity-50 cursor-not-allowed" : "hover:bg-white/5"}`}
+          className={`theme-bg-surface border theme-border theme-text-primary px-5 py-2 rounded-lg text-xs font-bold transition-all ${!hasRunRequest ? "opacity-50 cursor-not-allowed" : "hover:theme-bg-surface"}`}
         >
           Save
         </button>
@@ -1238,7 +1238,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         className={`flex flex-col overflow-hidden transition-all duration-300 ${isResponseCollapsed ? "flex-1" : "h-1/2"}`}
       >
         {/* Tabs */}
-        <div className="flex px-4 border-b theme-border bg-white/5 overflow-x-auto shrink-0">
+        <div className="flex px-4 border-b theme-border theme-bg-main overflow-x-auto shrink-0">
           {(
             [
               "pre-request",
@@ -1258,7 +1258,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
             >
               {tab}
               {tab === "body" && bodyType !== "none" && (
-                <span className="ml-2 w-2 h-2 rounded-full bg-indigo-500 inline-block"></span>
+                <span className="ml-2 w-2 h-2 rounded-full bg-[#71347B] inline-block"></span>
               )}
             </button>
           ))}
@@ -1363,6 +1363,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                   Query Parameters
                 </h4>
                 <KVEditor
+                  isEditable={true}
                   items={queryParams}
                   onUpdate={setQueryParams}
                   variables={variables}
@@ -1377,6 +1378,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 Request Headers
               </h4>
               <KVEditor
+                isEditable={true}
                 items={headers}
                 onUpdate={setHeaders}
                 variables={variables}
@@ -1408,7 +1410,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                       type="radio"
                       checked={bodyType === bt}
                       onChange={() => setBodyType(bt)}
-                      className="accent-indigo-500 w-4 h-4 rounded"
+                      className="bg-[#71347B] w-4 h-4 rounded"
                     />
                     <span className="uppercase tracking-widest group-hover:underline underline-offset-4">
                       {bt.replace("-", " ")}
@@ -1425,7 +1427,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                       onChange={(e) =>
                         setRawFormat(e.target.value as RawFormat)
                       }
-                      className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-[10px] font-black uppercase theme-text-primary outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-[10px] font-black uppercase theme-text-primary outline-none focus:ring-1 focus:ring-[#71347B]"
                     >
                       {["json", "xml", "text", "javascript", "html"].map(
                         (f) => (
@@ -1465,6 +1467,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
               )}
               {bodyType === "form-data" && (
                 <KVEditor
+                  isEditable={true}
                   items={formData}
                   onUpdate={setFormData}
                   showType
@@ -1473,13 +1476,14 @@ const Workbench: React.FC<WorkbenchProps> = ({
               )}
               {bodyType === "x-www-form-urlencoded" && (
                 <KVEditor
+                  isEditable={true}
                   items={urlEncoded}
                   onUpdate={setUrlEncoded}
                   variables={variables}
                 />
               )}
               {bodyType === "binary" && (
-                <div className="py-24 text-center border-2 border-dashed theme-border rounded-2xl bg-white/5 flex flex-col items-center gap-4">
+                <div className="py-24 text-center border-2 border-dashed theme-border rounded-2xl theme-bg-workbench flex flex-col items-center gap-4">
                   <i className="fas fa-file-upload text-4xl theme-text-secondary opacity-30"></i>
                   <p className="text-sm font-bold theme-text-secondary">
                     Binary uploads are handled via file pickers.
@@ -1926,11 +1930,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
         className={`transition-all duration-300 border-t theme-border flex flex-col theme-bg-surface shadow-[0_-8px_30px_rgba(0,0,0,0.15)] z-20 overflow-hidden ${isResponseCollapsed ? "h-10" : "flex-1 min-h-[250px]"}`}
       >
         {/* Header Bar */}
-        <div className="flex items-center justify-between px-6 py-2 bg-white/5 border-b theme-border shrink-0">
+        <div className="flex items-center justify-between px-6 py-2 theme-bg-main border-b theme-border shrink-0">
           <div className="flex items-center gap-6">
             <button
               onClick={() => setIsResponseCollapsed(!isResponseCollapsed)}
-              className="p-1.5 hover:bg-white/10 rounded-md theme-text-secondary transition-all"
+              className="p-1.5 hover:theme-bg-surface rounded-md theme-text-secondary transition-all"
               title={
                 isResponseCollapsed ? "Expand Response" : "Collapse Response"
               }
@@ -1986,7 +1990,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-black/10">
+        <div className="flex-1 overflow-hidden flex flex-col theme-bg-workbench">
           {!isResponseCollapsed && (
             <>
               {isExecuting ? (
@@ -2031,7 +2035,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                           </ul>
                         </div>
                       )}
-                      <div className="flex-1 min-h-0 bg-slate-950/40 rounded-xl overflow-hidden border theme-border flex flex-col shadow-inner">
+                      <div className="flex-1 min-h-0 theme-bg-workbench/40 rounded-xl overflow-hidden border theme-border flex flex-col shadow-inner">
                         <pre className="flex-1 p-5 text-xs font-mono theme-text-primary leading-relaxed overflow-auto scroll-smooth custom-scrollbar">
                           {typeof executionResult.response.body === "object"
                             ? JSON.stringify(
@@ -2131,7 +2135,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                               >
                                 {r.passed ? "SUCCESS" : "FAILURE"}
                               </span>
-                              <span className="text-xs theme-text-secondary font-mono bg-black/20 px-3 py-1 rounded-lg">
+                              <span className="text-xs theme-text-secondary font-mono theme-bg-workbench px-3 py-1 rounded-lg">
                                 Actual: {r.actual}
                               </span>
                             </div>
@@ -2218,7 +2222,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                           <h4 className="text-[10px] font-black theme-text-secondary uppercase tracking-widest mb-3 border-b theme-border pb-2">
                             Request Payload
                           </h4>
-                          <div className="bg-slate-950/40 rounded-xl overflow-hidden border theme-border shadow-inner">
+                          <div className="theme-bg-workbench/40 rounded-xl overflow-hidden border theme-border shadow-inner">
                             <pre className="p-4 text-[11px] font-mono theme-text-primary whitespace-pre-wrap break-all">
                               {typeof executionResult.request.body === "object"
                                 ? JSON.stringify(
@@ -2269,50 +2273,50 @@ const Workbench: React.FC<WorkbenchProps> = ({
       )}
       {isSaveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-[500px] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-slate-800/50">
+          <div className="theme-bg-surface border theme-border rounded-xl shadow-2xl w-[500px] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b theme-border theme-bg-workbench/50">
               <h3 className="text-sm font-black text-white tracking-widest uppercase">
                 Save Request
               </h3>
               <button
                 onClick={() => setIsSaveModalOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="theme-text-secondary hover:text-white transition-colors"
               >
                 <i className="fas fa-times"></i>
               </button>
             </div>
             <div className="p-6 space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <label className="text-[10px] font-black theme-text-secondary uppercase tracking-widest">
                   Request Name
                 </label>
                 <input
                   type="text"
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                  className="w-full theme-bg-workbench border theme-border rounded-lg px-4 py-2.5 text-sm theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
                   placeholder="Enter request name..."
                   autoFocus
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <label className="text-[10px] font-black theme-text-secondary uppercase tracking-widest">
                   Pre-conditions (Dependencies)
                 </label>
-                <p className="text-xs text-slate-500 italic">
+                <p className="text-xs theme-text-secondary italic">
                   Select requests that must run before this one.
                 </p>
-                <div className="border border-slate-700 rounded-lg overflow-hidden bg-slate-950 max-h-[200px] overflow-y-auto">
+                <div className="border theme-border rounded-lg overflow-hidden theme-bg-workbench max-h-[200px] overflow-y-auto">
                   {savedTestCases.length > 0 ? (
-                    <div className="divide-y divide-slate-800/50">
+                    <div className="divide-y divide-theme-border">
                       {savedTestCases.map((tc) => (
                         <label
                           key={tc.id}
-                          className="flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer"
+                          className="flex items-center gap-3 p-3 hover:theme-bg-surface transition-colors cursor-pointer"
                         >
                           <input
                             type="checkbox"
-                            className="accent-indigo-500 rounded cursor-pointer"
+                            className="rounded cursor-pointer"
                             checked={dependentOnId === tc.id}
                             onChange={() =>
                               setDependentOnId(
@@ -2320,33 +2324,33 @@ const Workbench: React.FC<WorkbenchProps> = ({
                               )
                             }
                           />
-                          <div className="text-[10px] font-mono text-slate-400 bg-white/5 px-1.5 py-0.5 rounded border border-slate-700">
+                          <div className="text-[10px] font-mono theme-text-secondary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border">
                             {tc.id}
                           </div>
-                          <span className="text-xs text-slate-300 truncate flex-1 font-medium">
+                          <span className="text-xs theme-text-primary truncate flex-1 font-medium">
                             {tc.name}
                           </span>
                         </label>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 text-center text-xs text-slate-500">
+                    <div className="p-4 text-center text-xs theme-text-secondary">
                       No saved scenarios available.
                     </div>
                   )}
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-end gap-3 bg-slate-800/30">
+            <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/30">
               <button
                 onClick={() => setIsSaveModalOpen(false)}
-                className="px-5 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                className="px-5 py-2 text-xs font-bold theme-text-secondary hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmSave}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20"
+                className="px-6 py-2 theme-accent-bg text-white rounded-lg text-xs font-bold hover:theme-accent-hover transition-colors shadow-lg shadow-indigo-500/20"
               >
                 Save Request
               </button>
@@ -2615,16 +2619,16 @@ const KVEditor: React.FC<KVEditorProps> = ({
               onClick={() => setEditingConstraintId(item.id)}
             />
             <div className="flex justify-center">
-              <div className="flex bg-slate-800/50 p-0.5 rounded-lg border border-slate-700">
+              <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border">
                 <button
                   onClick={() => updateRow(item.id, "mode", "static")}
-                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${!item.mode || item.mode === "static" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${!item.mode || item.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
                 >
                   Static
                 </button>
                 <button
                   onClick={() => updateRow(item.id, "mode", "dynamic")}
-                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${item.mode === "dynamic" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${item.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
                 >
                   Dynamic
                 </button>
@@ -2646,7 +2650,7 @@ const KVEditor: React.FC<KVEditorProps> = ({
       {isEditable && (
         <button
           onClick={addRow}
-          className="theme-accent-text text-[10px] font-black uppercase hover:underline tracking-widest px-3 py-1 rounded-lg hover:bg-indigo-500/10 transition-all"
+          className="theme-accent-text text-[10px] font-black uppercase hover:underline tracking-widest px-3 py-1 rounded-lg hover:theme-accent-bg/10 transition-all"
         >
           + Add Entry
         </button>
@@ -3030,9 +3034,9 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="px-6 py-4 border-b theme-border flex items-center justify-between bg-indigo-600/5">
+        <div className="px-6 py-4 border-b theme-border flex items-center justify-between theme-accent-bg/5">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+            <div className="w-8 h-8 rounded-lg theme-accent-bg flex items-center justify-center text-white shadow-lg">
               <i className="fas fa-code"></i>
             </div>
             <div>
@@ -3054,14 +3058,14 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
 
         <div className="flex-1 flex overflow-hidden">
           {/* Left Side: JSON/XML Viewer */}
-          <div className="flex-1 border-r theme-border p-6 flex flex-col bg-slate-900/20">
+          <div className="flex-1 border-r theme-border p-6 flex flex-col theme-bg-workbench/20">
             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
               <i className="fas fa-file-alt"></i>
               {format.toUpperCase()} Data
             </h4>
             <VariableInput
               type="textarea"
-              className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-indigo-500/50 resize-none theme-text-primary shadow-inner"
+              className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-theme-accent-text/50 resize-none theme-text-primary shadow-inner"
               value={localContent}
               variables={variables}
               onChange={setLocalContent}
@@ -3070,17 +3074,17 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
           </div>
 
           {/* Right Side: Field Configuration */}
-          <div className="w-[700px] p-6 overflow-y-auto bg-slate-900/40">
+          <div className="w-[700px] p-6 overflow-y-auto theme-bg-workbench/40">
             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
               <i className="fas fa-tasks"></i>
               Field Configuration
             </h4>
             {(format === "json" || format === "xml") &&
             jsonFields.length > 0 ? (
-              <div className="border theme-border rounded-xl overflow-hidden bg-black/20">
+              <div className="border theme-border rounded-xl overflow-hidden theme-bg-workbench/20">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="text-left border-b theme-border bg-slate-800/30">
+                    <tr className="text-left border-b theme-border theme-bg-workbench/30">
                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
                         Field (JSON PATH)
                       </th>
@@ -3099,11 +3103,11 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                     {jsonFields.map((field, idx) => (
                       <tr
                         key={field.id}
-                        className="hover:bg-white/5 transition-colors"
+                        className="hover:theme-bg-surface transition-colors"
                       >
                         <td className="py-4 px-4 align-top min-w-[100px]">
                           <div
-                            className="text-[11px] font-bold theme-text-primary font-mono break-all bg-black/20 p-2 rounded border theme-border"
+                            className="text-[11px] font-bold theme-text-primary font-mono break-all theme-bg-workbench/20 p-2 rounded border theme-border"
                             title={field.key}
                           >
                             {field.key}
@@ -3112,7 +3116,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                         <td className="py-4 px-4 align-top min-w-[200px]">
                           {field.options && field.options.length > 0 ? (
                             <select
-                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
                               value={field.value}
                               onChange={(e) => {
                                 const newFields = [...jsonFields];
@@ -3129,7 +3133,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                             </select>
                           ) : (
                             <VariableInput
-                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
                               placeholder="Value"
                               value={field.value}
                               variables={variables}
@@ -3151,14 +3155,14 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                           />
                         </td>
                         <td className="py-4 px-4 align-top text-center">
-                          <div className="flex bg-slate-800/50 p-0.5 rounded-lg border border-slate-700 w-fit mx-auto">
+                          <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border w-fit mx-auto">
                             <button
                               onClick={() => {
                                 const newFields = [...jsonFields];
                                 newFields[idx].mode = "static";
                                 setJsonFields(newFields);
                               }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
                             >
                               Static
                             </button>
@@ -3168,7 +3172,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                                 newFields[idx].mode = "dynamic";
                                 setJsonFields(newFields);
                               }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-400 hover:text-slate-200"}`}
+                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
                             >
                               Dynamic
                             </button>
@@ -3192,7 +3196,7 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 bg-slate-900/50">
+        <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/50">
           <button
             onClick={onClose}
             className="px-6 py-2 text-xs font-black theme-text-secondary uppercase hover:theme-text-primary transition-colors tracking-widest"

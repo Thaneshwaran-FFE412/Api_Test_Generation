@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
 import yaml from "js-yaml";
+import { FileDropzone, Icon } from "pixel-react";
 
 interface LandingPageProps {
   user: User | null;
@@ -149,10 +150,19 @@ const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const handleFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>,
+  ) => {
+    let file: File | undefined;
+    if ("dataTransfer" in e) {
+      e.preventDefault();
+      file = e.dataTransfer.files?.[0];
+    } else {
+      file = e.target.files?.[0];
+    }
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -168,128 +178,77 @@ const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-12">
-      <div className="text-center mb-16">
-        <h1 className="text-5xl font-extrabold mb-4">
+    <div className="h-screen overflow-hidden bg-[#F9F5FF] py-4 px-6">
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-extrabold mb-4 text-slate-900">
           Automate Your API Testing
         </h1>
-        <p className="theme-text-secondary text-xl max-w-2xl mx-auto">
+        <p className="text-slate-600 text-xl max-w-2xl mx-auto">
           The all-in-one platform to parse OpenAPI specs, generate manual test
           cases, run automation reports, and export Postman collections.
         </p>
       </div>
+      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Import URL Card */}
+        <div className="bg-[#71347B1A] p-6 rounded-2xl border-2 border-dashed border-[#71347B] flex flex-col items-center text-center">
+          <div className="w-16 h-16 bg-[#71347B]/10 text-[#71347B] rounded-full flex items-center justify-center mb-6">
+            <i className="fas fa-link text-3xl"></i>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-        <div className="theme-bg-surface p-8 rounded-2xl border theme-border hover:border-indigo-500/50 transition-all">
-          <div className="w-12 h-12 bg-indigo-500/20 text-indigo-500 rounded-lg flex items-center justify-center mb-6">
-            <i className="fas fa-link text-xl"></i>
-          </div>
-          <h2 className="text-2xl font-bold mb-4">Import from URL</h2>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="https://petstore.swagger.io/v2/swagger.json"
-                className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-              <button
-                onClick={handleImportUrl}
-                disabled={isLoading}
-                className="theme-accent-bg hover:opacity-90 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-              >
-                {isLoading ? "Loading..." : "Import"}
-              </button>
-            </div>
-            <p className="text-[10px] theme-text-secondary italic">
-              Supports JSON format
-            </p>
-          </div>
-          {error && <p className="text-red-400 mt-2 text-sm">{error}</p>}
-        </div>
+          <h2 className="text-xl font-bold mb-6 text-slate-900">Import URL</h2>
 
-        <div className="theme-bg-surface p-8 rounded-2xl border theme-border hover:border-emerald-500/50 transition-all">
-          <div className="w-12 h-12 bg-emerald-500/20 text-emerald-500 rounded-lg flex items-center justify-center mb-6">
-            <i className="fas fa-file-upload text-xl"></i>
-          </div>
-          <h2 className="text-2xl font-bold mb-4">Upload Specification</h2>
-          <label className="block w-full cursor-pointer theme-bg-main border-2 border-dashed theme-border hover:border-emerald-500/50 rounded-lg py-12 text-center transition-all">
+          <div className="w-full flex gap-2">
             <input
-              type="file"
-              accept=".json,.yaml,.yml"
-              onChange={handleFileUpload}
-              className="hidden"
+              type="text"
+              placeholder="Enter URL (Support Json Only)"
+              className="w-full border border-slate-300 rounded px-4 py-1 focus:outline-none focus:ring-2 focus:ring-[#71347B]"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
             />
-            <i className="fas fa-cloud-upload-alt text-3xl mb-4 theme-text-secondary opacity-50"></i>
-            <p className="theme-text-secondary">
-              Click to upload or drag and drop JSON/YAML
-            </p>
-          </label>
-        </div>
-      </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-2xl font-bold">Recent Projects</h3>
-          <span className="theme-text-secondary text-sm">
-            {projects.length} Projects Total
-          </span>
+            <button
+              onClick={handleImportUrl}
+              disabled={isLoading}
+              className="bg-[#71347B] hover:bg-[#5c2964] text-white px-6 py-1 rounded font transition-colors disabled:opacity-50"
+            >
+              {isLoading ? "Loading..." : "Import"}
+            </button>
+          </div>
+          {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
         </div>
 
-        {projects.length === 0 ? (
-          <div className="theme-bg-surface border theme-border rounded-xl p-12 text-center">
-            <p className="theme-text-secondary italic">
-              No projects yet. Import one to get started!
-            </p>
+        {/* Upload Card */}
+        <div
+          className="bg-[#71347B1A] p-6 rounded-2xl border-2 border-dashed border-[#71347B] flex flex-col items-center text-center cursor-pointer"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleFileUpload}
+        >
+          <input
+            type="file"
+            accept=".json,.yaml,.yml"
+            onChange={handleFileUpload}
+            className="hidden"
+            ref={fileInputRef}
+          />
+          <div className="w-16 h-16 bg-[#71347B]/10 text-[#71347B] rounded-full flex items-center justify-center mb-6">
+            <i className="fas fa-file-upload text-3xl"></i>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects
-              .sort((a, b) => b.createdAt - a.createdAt)
-              .map((p) => (
-                <div
-                  key={p.id}
-                  className="group relative theme-bg-surface border theme-border rounded-xl p-6 hover:shadow-xl transition-all"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 theme-bg-main rounded flex items-center justify-center theme-text-secondary font-bold uppercase border theme-border">
-                      {p.name.charAt(0)}
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteProject(p.id);
-                      }}
-                      className="theme-text-secondary hover:text-red-500 transition-colors"
-                    >
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
-                  </div>
-                  <h4 className="text-lg font-bold mb-2 group-hover:theme-accent-text transition-colors">
-                    {p.name}
-                  </h4>
-                  <p className="theme-text-secondary text-sm line-clamp-2 mb-4">
-                    {p.description || "No description available."}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs theme-text-secondary">
-                      {p.endpoints.length} Endpoints
-                    </span>
-                    <button
-                      onClick={() => {
-                        setActiveProject(p);
-                        navigate(`/workspace/${p.id}`);
-                      }}
-                      className="theme-accent-text text-sm font-medium hover:underline"
-                    >
-                      Open Workspace →
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <h2 className="text-xl font-bold mb-2 text-slate-900">
+            Drag & Drop your file to upload
+          </h2>
+          <p className="text-slate-500 text-sm mb-2">
+            (Support Json & YML Formats)
+          </p>
+          <p className="text-slate-900 font-bold mb-2">Or</p>
+          <div className="w-full">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-[#71347B] hover:bg-[#5c2964] text-white px-6 py-1 rounded font transition-colors"
+            >
+              Choose File to Upload
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

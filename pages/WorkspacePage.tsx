@@ -201,9 +201,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
             }
           });
 
-          const worksheet = XLSX.utils.json_to_sheet(sheetRows, {
-            origin: "A4",
-          });
+          const worksheet = XLSX.utils.json_to_sheet([]);
+          XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A4" });
 
           const moduleName = endpoint.tags?.[0] || "Default Module";
           const requestName = tc.name;
@@ -445,9 +444,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
             }
           });
 
-          const worksheet = XLSX.utils.json_to_sheet(sheetRows, {
-            origin: "A4",
-          });
+          const worksheet = XLSX.utils.json_to_sheet([]);
+          XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A4" });
 
           const moduleName = endpoint.tags?.[0] || "Default Module";
           const requestName = tc.name;
@@ -602,7 +600,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
           )}
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-1 hover:bg-white/10 rounded"
+            className="p-1 hover:theme-bg-surface rounded"
           >
             <i
               className={`fas fa-${isSidebarCollapsed ? "chevron-right" : "chevron-left"} theme-text-secondary`}
@@ -621,14 +619,14 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       {/* Right Panel: Tabbed Interface */}
       <div className="flex-1 flex flex-col min-w-0 theme-bg-workbench">
         {/* Top Bar with Tabs and Auth */}
-        <div className="flex items-center justify-between border-b theme-border bg-white/5">
+        <div className="flex items-center justify-between border-b theme-border theme-bg-main">
           <div className="flex">
             <button
               onClick={() => setActiveTab("saved")}
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === "saved"
                   ? "border-indigo-500 theme-accent-text theme-bg-surface"
-                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:bg-white/5"
+                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:theme-bg-surface"
               }`}
             >
               <i className="fas fa-list-check mr-2"></i>
@@ -639,7 +637,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === "workbench"
                   ? "border-indigo-500 theme-accent-text theme-bg-surface"
-                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:bg-white/5"
+                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:theme-bg-surface"
               }`}
             >
               <i className="fas fa-flask mr-2"></i>
@@ -650,7 +648,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === "variables"
                   ? "border-indigo-500 theme-accent-text theme-bg-surface"
-                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:bg-white/5"
+                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:theme-bg-surface"
               }`}
             >
               <i className="fas fa-code mr-2"></i>
@@ -720,9 +718,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       {reportData && excelDataByTestCase && (
         <ReportModal
           results={reportData}
-          project={project}
-          ids={Object.keys(excelDataByTestCase)}
-          excelDataByTestCase={excelDataByTestCase}
           onClose={() => {
             setReportData(null);
             setExcelDataByTestCase(null);

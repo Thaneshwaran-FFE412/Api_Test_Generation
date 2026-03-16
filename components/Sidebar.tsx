@@ -32,7 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       case "delete":
         return "text-rose-500 bg-rose-500/10";
       default:
-        return "theme-text-secondary bg-white/5";
+        return "theme-text-secondary theme-bg-workbench";
     }
   };
 
@@ -85,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div key={group} className="mb-1">
                 <button
                   onClick={() => toggleGroup(group)}
-                  className="w-full flex items-center gap-2 p-2 hover:bg-white/5 rounded transition-colors text-left"
+                  className="w-full flex items-center gap-2 p-2 hover:theme-bg-surface rounded transition-colors text-left"
                 >
                   <i
                     className={`fas fa-chevron-${collapsedGroups[group] ? "down" : "right"} text-[10px] theme-text-secondary w-3`}
@@ -94,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <span className="text-xs font-bold theme-text-primary uppercase tracking-wider truncate">
                     {group}
                   </span>
-                  <span className="ml-auto text-[10px] theme-text-secondary px-1.5 py-0.5 rounded-full bg-white/5">
+                  <span className="ml-auto text-[10px] theme-text-secondary px-1.5 py-0.5 rounded-full theme-bg-workbench">
                     {groupedEndpoints[group].length}
                   </span>
                 </button>
@@ -105,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={e.id}
                         onClick={() => onSelect(e)}
-                        className={`w-full text-left p-2 pl-4 rounded-r-md transition-all group relative ${selectedId === e.id ? "theme-bg-surface ring-1 ring-inset ring-indigo-500/30" : "hover:bg-white/5"}`}
+                        className={`w-full text-left p-2 pl-4 rounded-r-md transition-all group relative ${selectedId === e.id ? "theme-bg-surface ring-1 ring-inset ring-indigo-500/30" : "hover:theme-bg-surface"}`}
                       >
                         {selectedId === e.id && (
                           <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-indigo-500"></div>
