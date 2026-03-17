@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { HashRouter, Routes, Route, Navigate, Link } from "react-router-dom";
+import logo from "./assets/image/fireflink_logo.svg";
 import { Toaster } from "react-hot-toast";
 import { Mail } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -86,11 +87,12 @@ const App: React.FC = () => {
       <div className="min-h-screen theme-bg-main theme-text-primary flex flex-col">
         <header className="border-b theme-border px-6 py-3 flex items-center justify-between theme-bg-surface/50 backdrop-blur-md sticky top-0 z-50">
           <Link to="/" className="flex items-center gap-2">
-            <img
+            {/* <img
               src="../assets/image/fireflink_logo.svg"
               alt="Fireflink API Logo"
               className="w-32 h-8 rounded-sm"
-            />
+            /> */}
+            <img src={logo} alt="Fireflink API Logo" className="w-32 h-8" />
           </Link>
           <nav className="flex items-center gap-4">
             <div className="relative" ref={profileRef}>
