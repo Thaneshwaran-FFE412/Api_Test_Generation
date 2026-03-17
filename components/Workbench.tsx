@@ -1299,10 +1299,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
                       name: "Generate Random String",
                       code: "const randomStr = Math.random().toString(36).substring(2, 10);",
                     },
-                    {
-                      name: "Generate UUID",
-                      code: "const uuid = crypto.randomUUID();",
-                    },
+                    // {
+                    //   name: "Generate UUID",
+                    //   code: "const uuid = crypto.randomUUID();",
+                    // },
                     {
                       name: "Generate Timestamp",
                       code: "const timestamp = Date.now();",
