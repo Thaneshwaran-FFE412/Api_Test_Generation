@@ -21,7 +21,11 @@ const generateValidData = (
   constraint: any,
   originalValue: string,
   dataType?: string,
+  options?: string[],
 ) => {
+  if (options && options.length > 0) {
+    return options[Math.floor(Math.random() * options.length)];
+  }
   if (constraint.enum && constraint.enum.length > 0) {
     return constraint.enum[Math.floor(Math.random() * constraint.enum.length)];
   }
@@ -50,8 +54,12 @@ const generateInvalidData = (
   constraint: any,
   originalValue: string,
   dataType?: string,
+  options?: string[],
 ) => {
-  if (constraint.enum && constraint.enum.length > 0) {
+  if (
+    (options && options.length > 0) ||
+    (constraint.enum && constraint.enum.length > 0)
+  ) {
     return "invalid_enum_value_" + Math.random().toString(36).substring(7);
   }
   const type = constraint.type || dataType || "string";
@@ -73,16 +81,6 @@ const generateInvalidData = (
   return 999999; // wrong type
 };
 
-const getBaseParams = (params: KVItem[] | undefined) => {
-  const base: Record<string, any> = {};
-  if (!params) return base;
-  params.forEach((p) => {
-    if (!p.enabled) return;
-    base[p.key] = p.value;
-  });
-  return base;
-};
-
 const getFreshParams = (
   params: KVItem[] | undefined,
   overrides: Record<string, any> = {},
@@ -98,6 +96,7 @@ const getFreshParams = (
         parseConstraint(p.constraint),
         p.value,
         p.dataType,
+        p.options,
       );
     } else {
       result[p.key] = p.value;
@@ -124,6 +123,7 @@ const getFreshPayload = (
           parseConstraint(f.constraint),
           f.value,
           f.dataType,
+          f.options,
         );
       }
     });
@@ -261,6 +261,7 @@ export const generateMTCData = (
   tc: SavedTestCase,
   endpoint: ApiEndpoint,
   slNoStart: number,
+  variables: Record<string, string> = {},
 ) => {
   const allRows: any[] = [];
   const rawRows: any[] = [];
@@ -281,16 +282,11 @@ export const generateMTCData = (
     expectedStatus = statusCodeAssertion.expected;
   }
 
-  const basePath = getBaseParams(tc.pathParams);
-  const baseQuery = getBaseParams(tc.queryParams);
-  const baseHeader = getBaseParams(tc.headers);
-  let basePayload = "";
-  if (tc.bodyType === "raw" && tc.rawFormat === "json" && tc.jsonFields) {
-    basePayload = buildJsonPayload(tc.body, tc.jsonFields, {});
-  } else if (tc.bodyType === "raw") {
-    basePayload = tc.body;
-  }
-  const baseAuth = getAuthString(tc.auth, false);
+  const basePath = getFreshParams(tc.pathParams);
+  const baseQuery = getFreshParams(tc.queryParams);
+  const baseHeader = getFreshParams(tc.headers);
+  const basePayload = getFreshPayload(tc);
+  const baseAuth = getAuthString(tc.auth, true);
 
   let authTypeStr = "Authorization";
   if (tc.auth?.type && tc.auth.type !== "none") {
@@ -370,14 +366,14 @@ export const generateMTCData = (
   );
 
   // 2. HTTP Method Test
-  let methodsToTest: string[] = [];
-  if (method === "GET") {
-    methodsToTest = ["POST", "PUT"];
-  } else if (method === "POST" || method === "PUT") {
-    methodsToTest = ["GET"];
-  } else {
-    methodsToTest = ["GET"];
-  }
+  let methodsToTest: string[] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+  // if (method === "GET") {
+  //   methodsToTest = ["POST", "PUT","PATCH"];
+  // } else if (method === "POST" || method === "PUT") {
+  //   methodsToTest = ["GET", "DELETE"];
+  // } else {
+  //   methodsToTest = ["GET", "DELETE"];
+  // }
 
   methodsToTest.forEach((m) => {
     if (m !== method) {
@@ -407,7 +403,7 @@ export const generateMTCData = (
         "Path Param Happy",
         method,
         getFreshParams(tc.pathParams, {
-          [p.key]: generateValidData(c, p.value, p.dataType),
+          [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
         getFreshParams(tc.queryParams),
         getFreshParams(tc.headers),
@@ -435,7 +431,7 @@ export const generateMTCData = (
         "Path Param Wrong",
         method,
         getFreshParams(tc.pathParams, {
-          [p.key]: generateInvalidData(c, p.value, p.dataType),
+          [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
         getFreshParams(tc.queryParams),
         getFreshParams(tc.headers),
@@ -485,7 +481,7 @@ export const generateMTCData = (
         method,
         getFreshParams(tc.pathParams),
         getFreshParams(tc.queryParams, {
-          [p.key]: generateValidData(c, p.value, p.dataType),
+          [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
         getFreshParams(tc.headers),
         getAuthString(tc.auth, true),
@@ -513,7 +509,7 @@ export const generateMTCData = (
         method,
         getFreshParams(tc.pathParams),
         getFreshParams(tc.queryParams, {
-          [p.key]: generateInvalidData(c, p.value, p.dataType),
+          [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
         getFreshParams(tc.headers),
         getAuthString(tc.auth, true),
@@ -563,7 +559,7 @@ export const generateMTCData = (
         getFreshParams(tc.pathParams),
         getFreshParams(tc.queryParams),
         getFreshParams(tc.headers, {
-          [p.key]: generateValidData(c, p.value, p.dataType),
+          [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
         getAuthString(tc.auth, true),
         getFreshPayload(tc),
@@ -591,7 +587,7 @@ export const generateMTCData = (
         getFreshParams(tc.pathParams),
         getFreshParams(tc.queryParams),
         getFreshParams(tc.headers, {
-          [p.key]: generateInvalidData(c, p.value, p.dataType),
+          [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
         getAuthString(tc.auth, true),
         getFreshPayload(tc),
@@ -635,7 +631,7 @@ export const generateMTCData = (
 
       if (p.mode === "dynamic") {
         const happyPayload = getFreshPayload(tc, {
-          [p.key]: generateValidData(c, p.value, p.dataType),
+          [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         });
         addRow(
           set,
@@ -663,7 +659,7 @@ export const generateMTCData = (
         );
 
         const wrongPayload = getFreshPayload(tc, {
-          [p.key]: generateInvalidData(c, p.value, p.dataType),
+          [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         });
         addRow(
           set,

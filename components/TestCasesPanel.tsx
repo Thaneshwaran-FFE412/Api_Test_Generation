@@ -198,6 +198,10 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportFireflink = () => {
+    // toast.error("Fireflink export not implemented yet", { duration: 3000 });
+  };
+
   const handleExportSwagger = () => {
     const selectedCases = testCases.filter((tc) => selectedIds.has(tc.id));
     if (selectedCases.length === 0) return;
@@ -276,7 +280,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-6 gap-2">
           <button
             onClick={handleMTC}
             disabled={selectedIds.size === 0 || isGeneratingMTC}
@@ -325,6 +329,18 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           >
             <i className="fas fa-file-code text-sm mb-1"></i>
             <span className="text-[8px] font-bold uppercase">Swagger</span>
+          </button>
+
+          <button
+            onClick={handleExportFireflink}
+            disabled={selectedIds.size === 0 || !isMTCGeneratedForSelected}
+            className="flex flex-col items-center justify-center p-2 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-violet-500/30"
+            title="Export to Fireflink"
+          >
+            <i className="fas fa-external-link-alt text-sm mb-1"></i>
+            <span className="text-[8px] font-bold uppercase">
+              Move to Fireflink
+            </span>
           </button>
 
           <button
