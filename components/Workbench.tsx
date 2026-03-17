@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { toast } from "react-hot-toast";
 import {
   ApiEndpoint,
   SavedTestCase,
@@ -146,6 +147,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [hasRunRequest, setHasRunRequest] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [binaryFile, setBinaryFile] = useState<string>("");
   const [dependentOnId, setDependentOnId] = useState("");
 
   // Use a ref to track the current endpoint ID to prevent clearing results on every render
@@ -879,6 +881,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
       if (timeoutId) clearTimeout(timeoutId);
       const endTime = performance.now();
+      toast.success("Request sent successfully");
 
       let responseBody: any;
       let resHeaders: Record<string, string> = {};
@@ -1159,6 +1162,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
       createdAt: Date.now(),
     });
     setIsSaveModalOpen(false);
+    toast.success("Request saved successfully");
   };
 
   return (
@@ -1486,11 +1490,30 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 <div className="py-24 text-center border-2 border-dashed theme-border rounded-2xl theme-bg-workbench flex flex-col items-center gap-4">
                   <i className="fas fa-file-upload text-4xl theme-text-secondary opacity-30"></i>
                   <p className="text-sm font-bold theme-text-secondary">
-                    Binary uploads are handled via file pickers.
+                    {binaryFile
+                      ? `Selected: ${binaryFile}`
+                      : "Binary uploads are handled via file pickers."}
                   </p>
-                  <button className="theme-accent-bg text-white px-6 py-2 rounded-lg text-xs font-bold shadow-lg">
-                    Select Binary File
-                  </button>
+                  <input
+                    type="file"
+                    className="hidden"
+                    id="binary-upload"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setBinaryFile(file.name);
+                        toast.success(
+                          `File "${file.name}" uploaded successfully`,
+                        );
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="binary-upload"
+                    className="theme-accent-bg text-white px-6 py-2 rounded-lg text-xs font-bold shadow-lg cursor-pointer hover:opacity-90 transition-all"
+                  >
+                    {binaryFile ? "Change File" : "Select Binary File"}
+                  </label>
                 </div>
               )}
               {bodyType === "none" && (
@@ -2601,6 +2624,29 @@ const KVEditor: React.FC<KVEditorProps> = ({
                     </option>
                   ))}
                 </select>
+              ) : item.type === "file" ? (
+                <div className="flex-1 flex gap-2 items-center">
+                  <input
+                    type="file"
+                    id={`file-${item.id}`}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        updateRow(item.id, "value", file.name);
+                        toast.success(
+                          `File "${file.name}" uploaded successfully`,
+                        );
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor={`file-${item.id}`}
+                    className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-secondary cursor-pointer hover:theme-accent-bg/10 transition-all truncate"
+                  >
+                    {item.value || "Select File"}
+                  </label>
+                </div>
               ) : (
                 <VariableInput
                   className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
 import yaml from "js-yaml";
 import { FileDropzone, Icon } from "pixel-react";
+import toast from "react-hot-toast";
 
 interface LandingPageProps {
   user: User | null;
@@ -174,6 +175,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
         setError(err.message || "Invalid Swagger/OpenAPI file.");
       }
     };
+    toast.success("API's Imported successfully");
     reader.readAsText(file);
   };
 

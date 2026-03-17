@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import {
   SwaggerProject,
   ApiEndpoint,
@@ -577,12 +578,13 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
           workbook,
           `${project.name.replace(/\s+/g, "_")}_MTC.xlsx`,
         );
+        toast.success("MTC generated and downloaded successfully");
       } else {
-        alert("No Test Cases were generated. Please try again.");
+        toast.error("No Test Cases were generated. Please try again.");
       }
     } catch (error) {
       console.error("MTC Generation failed", error);
-      alert("An error occurred during generation.");
+      toast.error("An error occurred during generation.");
     } finally {
       setIsGeneratingMTC(false);
     }
