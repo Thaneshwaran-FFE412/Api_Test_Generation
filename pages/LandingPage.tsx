@@ -202,8 +202,8 @@ const LandingPage: React.FC<LandingPageProps> = ({
           <div className="w-full flex gap-2">
             <input
               type="text"
-              placeholder="Enter URL (Support Json Only)"
-              className="w-full border border-slate-300 rounded px-4 py-1 focus:outline-none focus:ring-2 focus:ring-[#71347B]"
+              placeholder="Enter URL (Supports JSON Only)"
+              className="w-full border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#71347B]"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
             />
@@ -239,7 +239,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             Drag & Drop your file to upload
           </h2>
           <p className="text-slate-500 text-sm mb-2">
-            (Support Json & YML Formats)
+            (Supports JSON & YAML Formats)
           </p>
           <p className="text-slate-900 font-bold mb-2">Or</p>
           <div className="w-full">
