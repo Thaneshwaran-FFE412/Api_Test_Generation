@@ -15,6 +15,7 @@ import ModulesPanel from "../components/ModulesPanel";
 import ReportModal from "../components/ReportModal";
 import { runAutomatedTests } from "../services/automationService";
 import { generateMTCData } from "../utils/mtcGenerator";
+import { formatAndAppendSheet } from "../utils/excelFormatter";
 import * as XLSX from "xlsx-js-style";
 
 interface WorkspacePageProps {
@@ -152,7 +153,21 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
   const handleSaveModule = (ids: string[], name: string) => {
     const mtcDataForModule: Record<string, { rows: any[]; rawRows: any[] }> =
       {};
-    ids.forEach((id) => {
+
+    // Helper to get all dependencies
+    const getAllDependencies = (tcId: string, visited = new Set<string>()) => {
+      if (visited.has(tcId)) return;
+      visited.add(tcId);
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (tc && tc.dependentOn) {
+        getAllDependencies(tc.dependentOn, visited);
+      }
+    };
+
+    const allIdsToSave = new Set<string>(ids);
+    ids.forEach((id) => getAllDependencies(id, allIdsToSave));
+
+    allIdsToSave.forEach((id) => {
       if (generatedMTCData[id]) {
         mtcDataForModule[id] = generatedMTCData[id];
       }
@@ -199,6 +214,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
             globalAuth,
             variables,
             project.endpoints,
+            mod.mtcData,
           );
 
         const workbook = XLSX.utils.book_new();
@@ -216,11 +232,15 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
           let sheetRows = autoExcelData[tcId] || [];
           if (sheetRows.length > 0) {
             hasData = true;
-            const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-            let sheetName =
-              tc.name.replace(/[\\/?*[\]:]/g, "_").substring(0, 31) || "Sheet";
-            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            const moduleName = endpoint.tags?.[0] || "Default Module";
+            const clonedRows = sheetRows.map((row: any) => ({ ...row }));
+            formatAndAppendSheet(workbook, clonedRows, moduleName, tc.name);
           }
+        }
+
+        if (results.length > 0) {
+          setReportData(results);
+          setExcelDataByTestCase(autoExcelData);
         }
 
         if (hasData) {
@@ -243,17 +263,40 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       const workbook = XLSX.utils.book_new();
       let hasData = false;
 
-      for (const tcId of mod.testCaseIds) {
+      // Use all keys in mtcData to include dependencies that were saved
+      let allTcIds = Object.keys(mod.mtcData);
+
+      // Sort topologically so dependencies come first
+      const sortedIds: string[] = [];
+      const visited = new Set<string>();
+
+      const visit = (tcId: string) => {
+        if (visited.has(tcId)) return;
+        const tc = project.savedTestCases.find((t) => t.id === tcId);
+        if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
+          visit(tc.dependentOn);
+        }
+        visited.add(tcId);
+        sortedIds.push(tcId);
+      };
+
+      allTcIds.forEach(visit);
+      allTcIds = sortedIds;
+
+      for (const tcId of allTcIds) {
         const tc = project.savedTestCases.find((t) => t.id === tcId);
         if (!tc) continue;
+
+        const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
+        if (!endpoint) continue;
 
         const mtcData = mod.mtcData[tcId];
         if (mtcData && mtcData.rows.length > 0) {
           hasData = true;
-          const worksheet = XLSX.utils.json_to_sheet(mtcData.rows);
-          let sheetName =
-            tc.name.replace(/[\\/?*[\]:]/g, "_").substring(0, 31) || "Sheet";
-          XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+          const moduleName = endpoint.tags?.[0] || "Default Module";
+          // We need to clone the rows because formatAndAppendSheet mutates them (deletes empty columns)
+          const clonedRows = mtcData.rows.map((row: any) => ({ ...row }));
+          formatAndAppendSheet(workbook, clonedRows, moduleName, tc.name);
         }
       }
 
@@ -272,7 +315,27 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
     const items: any[] = [];
 
-    mod.testCaseIds.forEach((tcId) => {
+    // Use all keys in mtcData to include dependencies that were saved
+    let allTcIds = Object.keys(mod.mtcData);
+
+    // Sort topologically so dependencies come first
+    const sortedIds: string[] = [];
+    const visited = new Set<string>();
+
+    const visit = (tcId: string) => {
+      if (visited.has(tcId)) return;
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
+        visit(tc.dependentOn);
+      }
+      visited.add(tcId);
+      sortedIds.push(tcId);
+    };
+
+    allTcIds.forEach(visit);
+    allTcIds = sortedIds;
+
+    allTcIds.forEach((tcId) => {
       const tc = project.savedTestCases.find((t) => t.id === tcId);
       if (!tc) return;
 
@@ -369,7 +432,27 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
     const workbook = XLSX.utils.book_new();
     const fireflinkData: any[] = [];
 
-    mod.testCaseIds.forEach((tcId) => {
+    // Use all keys in mtcData to include dependencies that were saved
+    let allTcIds = Object.keys(mod.mtcData);
+
+    // Sort topologically so dependencies come first
+    const sortedIds: string[] = [];
+    const visited = new Set<string>();
+
+    const visit = (tcId: string) => {
+      if (visited.has(tcId)) return;
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
+        visit(tc.dependentOn);
+      }
+      visited.add(tcId);
+      sortedIds.push(tcId);
+    };
+
+    allTcIds.forEach(visit);
+    allTcIds = sortedIds;
+
+    allTcIds.forEach((tcId) => {
       const tc = project.savedTestCases.find((t) => t.id === tcId);
       if (!tc) return;
 
@@ -409,12 +492,11 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
   };
 
   const handleGenerateMTC = async (ids: string[]) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0) return false;
 
     setIsGeneratingMTC(true);
 
     try {
-      const workbook = XLSX.utils.book_new();
       let hasData = false;
 
       const getExecutionPlan = (
@@ -464,171 +546,21 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
         if (sheetRows.length > 0) {
           hasData = true;
-          const columnsToCheck = [
-            "Path Params",
-            "Query Params",
-            "Header Params",
-          ];
-
-          const authCol = Object.keys(sheetRows[0]).find((k) =>
-            k.startsWith("Authorization"),
-          );
-          if (authCol) columnsToCheck.push(authCol);
-
-          const payloadCol = Object.keys(sheetRows[0]).find((k) =>
-            k.startsWith("Request Payload"),
-          );
-          if (payloadCol) columnsToCheck.push(payloadCol);
-
-          columnsToCheck.forEach((col) => {
-            const isEmpty = sheetRows.every(
-              (row) => !row[col] || String(row[col]).trim() === "",
-            );
-            if (isEmpty) {
-              sheetRows.forEach((row) => delete row[col]);
-            }
-          });
-
-          const worksheet = XLSX.utils.json_to_sheet([]);
-          XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A4" });
-
-          const moduleName = endpoint.tags?.[0] || "Default Module";
-          const requestName = tc.name;
-
-          XLSX.utils.sheet_add_aoa(
-            worksheet,
-            [
-              ["Module Name", moduleName],
-              ["Request Name", requestName],
-            ],
-            { origin: "A1" },
-          );
-
-          const colWidths: Record<string, number> = {
-            "Sl No": 5,
-            "End Point": 25,
-            Set: 35,
-            "Test Case Summary": 25,
-            "Http Method": 15,
-            "Path Params": 20,
-            "Query Params": 20,
-            "Header Params": 20,
-            Authorization: 15,
-            "Request Payload (form data)": 20,
-            "Expected Result": 15,
-            "Actual Result": 15,
-            Status: 10,
-            Comments: 20,
-          };
-
-          const wscols = Object.keys(sheetRows[0]).map((key) => ({
-            wch: colWidths[key] || 20,
-          }));
-          worksheet["!cols"] = wscols;
-
-          // Apply Styling
-          const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-
-          const headerStyle = {
-            font: { bold: true, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "4F46E5" } }, // Indigo
-            alignment: {
-              vertical: "center",
-              horizontal: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          const dataStyle = {
-            alignment: { vertical: "top", wrapText: true },
-            border: {
-              top: { style: "thin", color: { rgb: "E5E7EB" } },
-              bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-              left: { style: "thin", color: { rgb: "E5E7EB" } },
-              right: { style: "thin", color: { rgb: "E5E7EB" } },
-            },
-          };
-
-          const metaLabelStyle = {
-            font: { bold: true, color: { rgb: "111827" } },
-            fill: { fgColor: { rgb: "F3F4F6" } },
-            alignment: { vertical: "center" },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          const metaValueStyle = {
-            font: { bold: true, color: { rgb: "4F46E5" } },
-            alignment: { vertical: "center" },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-              const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-              if (!worksheet[cellAddress]) continue;
-
-              if (R === 0 || R === 1) {
-                // Meta rows (Module Name, Request Name)
-                if (C === 0) {
-                  worksheet[cellAddress].s = metaLabelStyle;
-                } else if (C === 1) {
-                  worksheet[cellAddress].s = metaValueStyle;
-                }
-              } else if (R === 3) {
-                // Table Headers
-                worksheet[cellAddress].s = headerStyle;
-              } else if (R > 3) {
-                // Data Rows
-                worksheet[cellAddress].s = dataStyle;
-              }
-            }
-          }
-
-          let sheetName = requestName
-            .replace(/[\\/?*[\]:]/g, "_")
-            .substring(0, 31);
-          if (!sheetName) sheetName = "Sheet";
-
-          let finalSheetName = sheetName;
-          let counter = 1;
-          while (workbook.SheetNames.includes(finalSheetName)) {
-            finalSheetName = `${sheetName.substring(0, 28)}_${counter}`;
-            counter++;
-          }
-
-          XLSX.utils.book_append_sheet(workbook, worksheet, finalSheetName);
         }
       }
 
       if (hasData) {
         setGeneratedMTCData(newGeneratedMTCData);
-        XLSX.writeFile(
-          workbook,
-          `${project.name.replace(/\s+/g, "_")}_MTC.xlsx`,
-        );
-        toast.success("MTC generated and downloaded successfully");
+        toast.success("MTC generated successfully");
+        return true;
       } else {
         toast.error("No Test Cases were generated. Please try again.");
+        return false;
       }
     } catch (error) {
       console.error("MTC Generation failed", error);
       toast.error("An error occurred during generation.");
+      return false;
     } finally {
       setIsGeneratingMTC(false);
     }

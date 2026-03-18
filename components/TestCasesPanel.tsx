@@ -4,7 +4,7 @@ import { SavedTestCase, SwaggerProject } from "../types";
 interface TestCasesPanelProps {
   testCases: SavedTestCase[];
   onDelete: (ids: string[]) => void;
-  onGenerateMTC: (ids: string[]) => void;
+  onGenerateMTC: (ids: string[]) => Promise<boolean>;
   onSaveModule: (ids: string[], name: string) => void;
   isGeneratingMTC: boolean;
   project: SwaggerProject;
@@ -81,11 +81,18 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     setExpandedGroups(newExpanded);
   };
 
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [moduleName, setModuleName] = useState("");
+
   // --- Actions ---
 
-  const handleMTC = () => {
+  const handleMTC = async () => {
     if (selectedIds.size === 0) return;
-    onGenerateMTC(Array.from(selectedIds));
+    const success = await onGenerateMTC(Array.from(selectedIds));
+    if (success) {
+      setModuleName("");
+      setIsSaveModalOpen(true);
+    }
   };
 
   const handleDelete = () => {
@@ -166,9 +173,14 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
 
   const handleSaveModule = () => {
     if (selectedIds.size === 0) return;
-    const name = prompt("Enter Module Name:");
-    if (!name) return;
-    onSaveModule(Array.from(selectedIds), name);
+    setModuleName("");
+    setIsSaveModalOpen(true);
+  };
+
+  const confirmSaveModule = () => {
+    if (!moduleName.trim()) return;
+    onSaveModule(Array.from(selectedIds), moduleName.trim());
+    setIsSaveModalOpen(false);
   };
 
   return (
@@ -278,7 +290,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                     <div className="flex items-center gap-2 p-2 theme-bg-surface/50 hover:theme-bg-surface transition-colors select-none">
                       <button
                         onClick={() => toggleGroupExpand(group)}
-                        className="w-4 h-4 flex items-center justify-center text-xs theme-text-secondary hover:text-white"
+                        className="w-4 h-4 flex items-center justify-center text-xs theme-text-secondary hover:theme-text-primary"
                       >
                         <i
                           className={`fas fa-chevron-${isExpanded ? "down" : "right"}`}
@@ -357,6 +369,56 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           </>
         )}
       </div>
+
+      {/* Save Module Modal */}
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="theme-bg-main border theme-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-4 border-b theme-border flex justify-between items-center theme-bg-surface">
+              <h3 className="font-bold theme-text-primary">Save Module</h3>
+              <button
+                onClick={() => setIsSaveModalOpen(false)}
+                className="theme-text-secondary hover:theme-text-primary transition-colors"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium theme-text-secondary mb-2">
+                Module Name
+              </label>
+              <input
+                type="text"
+                value={moduleName}
+                onChange={(e) => setModuleName(e.target.value)}
+                placeholder="e.g., Authentication Flow"
+                className="w-full px-4 py-2 rounded-lg border theme-border theme-bg-workbench theme-text-primary focus:outline-none focus:border-indigo-500 transition-colors"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && moduleName.trim()) {
+                    confirmSaveModule();
+                  }
+                }}
+              />
+            </div>
+            <div className="p-4 border-t theme-border theme-bg-surface flex justify-end gap-3">
+              <button
+                onClick={() => setIsSaveModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium theme-text-secondary hover:theme-bg-workbench transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSaveModule}
+                disabled={!moduleName.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

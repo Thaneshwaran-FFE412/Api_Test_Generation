@@ -31,7 +31,7 @@ export const runAutomatedTests = async (
   globalAuth: GlobalAuth,
   variables: Record<string, string>,
   endpoints: ApiEndpoint[],
-  generatedMTCData: Record<string, { rows: any[]; rawRows: any[] }>,
+  savedMtcData?: Record<string, { rows: any[]; rawRows: any[] }>,
 ): Promise<{
   results: ExecutionResult[];
   excelDataByTestCase: Record<string, any[]>;
@@ -73,13 +73,19 @@ export const runAutomatedTests = async (
     }
 
     try {
-      // Generate once to get the number of scenarios
-      const dummyMtcData = generateMTCData(
-        targetTc,
-        targetEndpoint,
-        1,
-        currentVariables,
-      );
+      // Use saved MTC data if available, otherwise generate
+      let dummyMtcData;
+      if (savedMtcData && savedMtcData[targetTc.id]) {
+        dummyMtcData = JSON.parse(JSON.stringify(savedMtcData[targetTc.id]));
+      } else {
+        dummyMtcData = generateMTCData(
+          targetTc,
+          targetEndpoint,
+          1,
+          currentVariables,
+        );
+      }
+
       const scenarioCount = dummyMtcData.rawRows.length;
 
       const tcExcelData: any[] = [];
@@ -91,16 +97,26 @@ export const runAutomatedTests = async (
           const depEndpoint = endpoints.find((e) => e.id === depTc.endpointId);
           if (!depEndpoint) continue;
 
-          const depMtcData = generateMTCData(
-            depTc,
-            depEndpoint,
-            currentSlNo,
-            currentVariables,
-          );
+          let depMtcData;
+          if (savedMtcData && savedMtcData[depTc.id]) {
+            depMtcData = JSON.parse(JSON.stringify(savedMtcData[depTc.id]));
+          } else {
+            depMtcData = generateMTCData(
+              depTc,
+              depEndpoint,
+              currentSlNo,
+              currentVariables,
+            );
+          }
+
           if (depMtcData.rawRows.length === 0) continue;
 
           const depRawRow = depMtcData.rawRows[0];
           const depExcelRow = depMtcData.rows[0];
+
+          // Fix Sl No for dependency
+          depExcelRow["Sl No"] = currentSlNo;
+          depRawRow.slNo = currentSlNo;
 
           try {
             const depResult = await executeMTCScenario(
@@ -150,12 +166,20 @@ export const runAutomatedTests = async (
         }
 
         // 2. Run target scenario
-        const freshTargetMtcData = generateMTCData(
-          targetTc,
-          targetEndpoint,
-          currentSlNo,
-          currentVariables,
-        );
+        let freshTargetMtcData;
+        if (savedMtcData && savedMtcData[targetTc.id]) {
+          freshTargetMtcData = JSON.parse(
+            JSON.stringify(savedMtcData[targetTc.id]),
+          );
+        } else {
+          freshTargetMtcData = generateMTCData(
+            targetTc,
+            targetEndpoint,
+            currentSlNo,
+            currentVariables,
+          );
+        }
+
         if (i >= freshTargetMtcData.rawRows.length) continue;
 
         const rawRow = freshTargetMtcData.rawRows[i];
@@ -278,6 +302,14 @@ const executeMTCScenario = async (
   }
 
   let body = rawRow.payload;
+  if (body) {
+    if (typeof body === "string") {
+      body = substituteVariables(body, variables);
+    } else if (typeof body === "object") {
+      body = JSON.parse(substituteVariables(JSON.stringify(body), variables));
+    }
+  }
+
   if (body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
