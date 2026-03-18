@@ -4,11 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.ts",
-    "prod": "cross-env NODE_ENV=production tsx server.ts"
+    "start": "cross-env NODE_ENV=production node server.js"
   },
   "dependencies": {
     "@google/genai": "^1.37.0",
@@ -27,6 +26,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.12.0",
     "recharts": "^3.6.0",
+    "tsx": "^4.21.0",
     "vite-plugin-node-polyfills": "^0.25.0",
     "xlsx": "0.18.5",
     "xlsx-js-style": "^1.2.0"
@@ -35,8 +35,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.2.0",
-    "tsx": "^4.21.0",
+    "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
