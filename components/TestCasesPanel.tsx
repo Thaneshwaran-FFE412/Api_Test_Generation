@@ -5,8 +5,7 @@ interface TestCasesPanelProps {
   testCases: SavedTestCase[];
   onDelete: (ids: string[]) => void;
   onGenerateMTC: (ids: string[]) => void;
-  onRunAutomation: (ids: string[]) => void;
-  isExecuting: boolean;
+  onSaveModule: (ids: string[], name: string) => void;
   isGeneratingMTC: boolean;
   project: SwaggerProject;
   generatedMTCData: Record<string, { rows: any[]; rawRows: any[] }>;
@@ -16,8 +15,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   testCases,
   onDelete,
   onGenerateMTC,
-  onRunAutomation,
-  isExecuting,
+  onSaveModule,
   isGeneratingMTC,
   project,
   generatedMTCData,
@@ -85,11 +83,6 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
 
   // --- Actions ---
 
-  const handleRun = () => {
-    if (selectedIds.size === 0) return;
-    onRunAutomation(Array.from(selectedIds));
-  };
-
   const handleMTC = () => {
     if (selectedIds.size === 0) return;
     onGenerateMTC(Array.from(selectedIds));
@@ -101,105 +94,6 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
       onDelete(Array.from(selectedIds));
       setSelectedIds(new Set());
     }
-  };
-
-  const handleExportPostman = () => {
-    const selectedCases = testCases.filter((tc) => selectedIds.has(tc.id));
-    if (selectedCases.length === 0) return;
-
-    const items: any[] = [];
-
-    selectedCases.forEach((tc) => {
-      const mtcData = generatedMTCData[tc.id];
-      if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
-        mtcData.rawRows.forEach((rawRow, index) => {
-          const baseUrl = tc.url.split("/").slice(0, 3).join("/");
-
-          const queryParams = Object.entries(rawRow.queryParams || {})
-            .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-            .map(
-              ([k, v]) =>
-                `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
-            )
-            .join("&");
-
-          const fullUrl =
-            baseUrl + rawRow.endPoint + (queryParams ? `?${queryParams}` : "");
-
-          const headerEntries = Object.entries(rawRow.headerParams || {})
-            .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-            .map(([k, v]) => ({ key: k, value: String(v) }));
-
-          if (rawRow.auth) {
-            headerEntries.push({ key: "Authorization", value: rawRow.auth });
-          }
-
-          items.push({
-            name: `${tc.name} - ${rawRow.set} - ${rawRow.summary}`,
-            request: {
-              method: rawRow.httpMethod.toUpperCase(),
-              header: headerEntries,
-              body: {
-                mode: "raw",
-                raw: rawRow.payload || "",
-              },
-              url: {
-                raw: fullUrl,
-                host: [baseUrl.replace(/^https?:\/\//, "")],
-                path: rawRow.endPoint.split("/").filter(Boolean),
-                query: Object.entries(rawRow.queryParams || {})
-                  .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-                  .map(([k, v]) => ({ key: k, value: String(v) })),
-              },
-            },
-            response: [],
-          });
-        });
-      } else {
-        items.push({
-          name: tc.name,
-          request: {
-            method: tc.method.toUpperCase(),
-            header: Object.entries(tc.headers)
-              .filter(([_, v]) => v)
-              .map(([k, v]) => ({ key: k, value: v })),
-            body: {
-              mode: "raw",
-              raw: tc.body,
-            },
-            url: {
-              raw: tc.url,
-              host: [tc.url.split("/")[2]],
-              path: tc.url.split("/").slice(3),
-            },
-          },
-          response: [],
-        });
-      }
-    });
-
-    const postman = {
-      info: {
-        name: `${project.name} - Export`,
-        schema:
-          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-      },
-      item: items,
-    };
-
-    const blob = new Blob([JSON.stringify(postman, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project.name.replace(/\s+/g, "_")}_selected.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportFireflink = () => {
-    // toast.error("Fireflink export not implemented yet", { duration: 3000 });
   };
 
   const handleExportSwagger = () => {
@@ -270,6 +164,13 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
         generatedMTCData[id].rawRows.length > 0,
     );
 
+  const handleSaveModule = () => {
+    if (selectedIds.size === 0) return;
+    const name = prompt("Enter Module Name:");
+    if (!name) return;
+    onSaveModule(Array.from(selectedIds), name);
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden h-full">
       {/* Header & Actions */}
@@ -280,7 +181,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-6 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <button
             onClick={handleMTC}
             disabled={selectedIds.size === 0 || isGeneratingMTC}
@@ -296,29 +197,13 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           </button>
 
           <button
-            onClick={handleRun}
-            disabled={
-              selectedIds.size === 0 ||
-              isExecuting ||
-              !isMTCGeneratedForSelected
-            }
-            className="flex flex-col items-center justify-center p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-emerald-500/30"
-            title="Run Automation"
-          >
-            <i
-              className={`fas ${isExecuting ? "fa-spinner fa-spin" : "fa-play"} text-sm mb-1`}
-            ></i>
-            <span className="text-[8px] font-bold uppercase">Run Auto</span>
-          </button>
-
-          <button
-            onClick={handleExportPostman}
+            onClick={handleSaveModule}
             disabled={selectedIds.size === 0 || !isMTCGeneratedForSelected}
-            className="flex flex-col items-center justify-center p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-amber-500/30"
-            title="Export Postman Collection"
+            className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-blue-500/30"
+            title="Save as Module"
           >
-            <i className="fas fa-file-export text-sm mb-1"></i>
-            <span className="text-[8px] font-bold uppercase">Postman</span>
+            <i className="fas fa-save text-sm mb-1"></i>
+            <span className="text-[8px] font-bold uppercase">Save Mod</span>
           </button>
 
           <button
@@ -329,18 +214,6 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           >
             <i className="fas fa-file-code text-sm mb-1"></i>
             <span className="text-[8px] font-bold uppercase">Swagger</span>
-          </button>
-
-          <button
-            onClick={handleExportFireflink}
-            disabled={selectedIds.size === 0 || !isMTCGeneratedForSelected}
-            className="flex flex-col items-center justify-center p-2 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-violet-500/30"
-            title="Export to Fireflink"
-          >
-            <i className="fas fa-external-link-alt text-sm mb-1"></i>
-            <span className="text-[8px] font-bold uppercase">
-              Move to Fireflink
-            </span>
           </button>
 
           <button

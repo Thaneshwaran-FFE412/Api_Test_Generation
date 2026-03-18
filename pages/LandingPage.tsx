@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
 import yaml from "js-yaml";
-import { FileDropzone, Icon } from "pixel-react";
 import toast from "react-hot-toast";
 
 interface LandingPageProps {

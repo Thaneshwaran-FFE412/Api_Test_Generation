@@ -11,8 +11,8 @@ import Sidebar from "../components/Sidebar";
 import Workbench from "../components/Workbench";
 import TestCasesPanel from "../components/TestCasesPanel";
 import VariablesPanel from "../components/VariablesPanel";
+import ModulesPanel from "../components/ModulesPanel";
 import ReportModal from "../components/ReportModal";
-import AuthHeader from "../components/AuthHeader";
 import { runAutomatedTests } from "../services/automationService";
 import { generateMTCData } from "../utils/mtcGenerator";
 import * as XLSX from "xlsx-js-style";
@@ -22,7 +22,7 @@ interface WorkspacePageProps {
   updateProject: (p: SwaggerProject) => void;
 }
 
-type WorkspaceTab = "saved" | "workbench" | "variables";
+type WorkspaceTab = "saved" | "workbench" | "variables" | "modules";
 
 const WorkspacePage: React.FC<WorkspacePageProps> = ({
   project,
@@ -149,219 +149,263 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
     updateProject(updatedProject);
   };
 
-  const handleRunAutomation = async (ids: string[]) => {
-    if (ids.length === 0) return;
-    setIsExecutingAutomation(true);
+  const handleSaveModule = (ids: string[], name: string) => {
+    const mtcDataForModule: Record<string, { rows: any[]; rawRows: any[] }> =
+      {};
+    ids.forEach((id) => {
+      if (generatedMTCData[id]) {
+        mtcDataForModule[id] = generatedMTCData[id];
+      }
+    });
 
-    try {
-      const { results, excelDataByTestCase } = await runAutomatedTests(
-        ids,
-        project.savedTestCases,
-        globalAuth,
-        variables,
-        project.endpoints,
-      );
+    const newModule = {
+      id: crypto.randomUUID(),
+      name,
+      testCaseIds: ids,
+      mtcData: mtcDataForModule,
+      createdAt: Date.now(),
+    };
 
-      setReportData(results);
-      setExcelDataByTestCase(excelDataByTestCase);
+    const updatedProject = {
+      ...project,
+      savedModules: [...(project.savedModules || []), newModule],
+    };
+    updateProject(updatedProject);
+    toast.success("Module saved successfully!");
+  };
+
+  const handleDeleteModules = (ids: string[]) => {
+    const updatedProject = {
+      ...project,
+      savedModules: (project.savedModules || []).filter(
+        (m) => !ids.includes(m.id),
+      ),
+    };
+    updateProject(updatedProject);
+    toast.success("Modules deleted successfully!");
+  };
+
+  const handleDownloadModule = async (id: string, withAutomation: boolean) => {
+    const mod = project.savedModules?.find((m) => m.id === id);
+    if (!mod) return;
+
+    if (withAutomation) {
+      setIsExecutingAutomation(true);
+      try {
+        const { results, excelDataByTestCase: autoExcelData } =
+          await runAutomatedTests(
+            mod.testCaseIds,
+            project.savedTestCases,
+            globalAuth,
+            variables,
+            project.endpoints,
+          );
+
+        const workbook = XLSX.utils.book_new();
+        let hasData = false;
+
+        for (const tcId of mod.testCaseIds) {
+          const tc = project.savedTestCases.find((t) => t.id === tcId);
+          if (!tc) continue;
+
+          const endpoint = project.endpoints.find(
+            (e) => e.id === tc.endpointId,
+          );
+          if (!endpoint) continue;
+
+          let sheetRows = autoExcelData[tcId] || [];
+          if (sheetRows.length > 0) {
+            hasData = true;
+            const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+            let sheetName =
+              tc.name.replace(/[\\/?*[\]:]/g, "_").substring(0, 31) || "Sheet";
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+          }
+        }
+
+        if (hasData) {
+          XLSX.writeFile(
+            workbook,
+            `${mod.name.replace(/\s+/g, "_")}_Automation_Report.xlsx`,
+          );
+          toast.success("Module automation report downloaded!");
+        } else {
+          toast.error("No data to download.");
+        }
+      } catch (e) {
+        console.error("Automation Error:", e);
+        toast.error("An error occurred while running automation.");
+      } finally {
+        setIsExecutingAutomation(false);
+      }
+    } else {
+      // Download MTC data only
       const workbook = XLSX.utils.book_new();
       let hasData = false;
 
-      for (const id of ids) {
-        const tc = project.savedTestCases.find((t) => t.id === id);
+      for (const tcId of mod.testCaseIds) {
+        const tc = project.savedTestCases.find((t) => t.id === tcId);
         if (!tc) continue;
 
-        const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
-        if (!endpoint) continue;
-
-        let sheetRows = excelDataByTestCase[id];
-        if (sheetRows && sheetRows.length > 0) {
+        const mtcData = mod.mtcData[tcId];
+        if (mtcData && mtcData.rows.length > 0) {
           hasData = true;
-          const columnsToCheck = [
-            "Path Params",
-            "Query Params",
-            "Header Params",
-          ];
-
-          const authCol = Object.keys(sheetRows[0]).find((k) =>
-            k.startsWith("Authorization"),
-          );
-          if (authCol) columnsToCheck.push(authCol);
-
-          const payloadCol = Object.keys(sheetRows[0]).find((k) =>
-            k.startsWith("Request Payload"),
-          );
-          if (payloadCol) columnsToCheck.push(payloadCol);
-
-          columnsToCheck.forEach((col) => {
-            const isEmpty = sheetRows.every(
-              (row) => !row[col] || String(row[col]).trim() === "",
-            );
-            if (isEmpty) {
-              sheetRows.forEach((row) => delete row[col]);
-            }
-          });
-
-          const worksheet = XLSX.utils.json_to_sheet([]);
-          XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A4" });
-
-          const moduleName = endpoint.tags?.[0] || "Default Module";
-          const requestName = tc.name;
-
-          XLSX.utils.sheet_add_aoa(
-            worksheet,
-            [
-              ["Module Name", moduleName],
-              ["Request Name", requestName],
-            ],
-            { origin: "A1" },
-          );
-
-          const colWidths: Record<string, number> = {
-            "Sl No": 5,
-            "End Point": 25,
-            Set: 35,
-            "Test Case Summary": 25,
-            "Http Method": 15,
-            "Path Params": 20,
-            "Query Params": 20,
-            "Header Params": 20,
-            Authorization: 15,
-            "Request Payload (form data)": 20,
-            "Expected Result": 15,
-            "Actual Result": 30,
-            Status: 10,
-            Comments: 20,
-          };
-
-          const wscols = Object.keys(sheetRows[0]).map((key) => ({
-            wch: colWidths[key] || 20,
-          }));
-          worksheet["!cols"] = wscols;
-
-          // Apply Styling
-          const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-
-          const headerStyle = {
-            font: { bold: true, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "4F46E5" } }, // Indigo
-            alignment: {
-              vertical: "center",
-              horizontal: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          const dataStyle = {
-            alignment: { vertical: "top", wrapText: true },
-            border: {
-              top: { style: "thin", color: { rgb: "E5E7EB" } },
-              bottom: { style: "thin", color: { rgb: "E5E7EB" } },
-              left: { style: "thin", color: { rgb: "E5E7EB" } },
-              right: { style: "thin", color: { rgb: "E5E7EB" } },
-            },
-          };
-
-          const metaLabelStyle = {
-            font: { bold: true, color: { rgb: "111827" } },
-            fill: { fgColor: { rgb: "F3F4F6" } },
-            alignment: { vertical: "center" },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          const metaValueStyle = {
-            font: { bold: true, color: { rgb: "4F46E5" } },
-            alignment: { vertical: "center" },
-            border: {
-              top: { style: "thin", color: { rgb: "D1D5DB" } },
-              bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-              left: { style: "thin", color: { rgb: "D1D5DB" } },
-              right: { style: "thin", color: { rgb: "D1D5DB" } },
-            },
-          };
-
-          for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-              const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-              if (!worksheet[cellAddress]) continue;
-
-              if (R === 0 || R === 1) {
-                // Meta rows (Module Name, Request Name)
-                if (C === 0) {
-                  worksheet[cellAddress].s = metaLabelStyle;
-                } else if (C === 1) {
-                  worksheet[cellAddress].s = metaValueStyle;
-                }
-              } else if (R === 3) {
-                // Table Headers
-                worksheet[cellAddress].s = headerStyle;
-              } else if (R > 3) {
-                // Data Rows
-                worksheet[cellAddress].s = dataStyle;
-
-                // Color code Status column
-                if (R > 3) {
-                  const headerCell = XLSX.utils.encode_cell({ r: 3, c: C });
-                  if (
-                    worksheet[headerCell] &&
-                    worksheet[headerCell].v === "Status"
-                  ) {
-                    if (worksheet[cellAddress].v === "Pass") {
-                      worksheet[cellAddress].s = {
-                        ...dataStyle,
-                        font: { color: { rgb: "10B981" }, bold: true },
-                      };
-                    } else if (worksheet[cellAddress].v === "Fail") {
-                      worksheet[cellAddress].s = {
-                        ...dataStyle,
-                        font: { color: { rgb: "EF4444" }, bold: true },
-                      };
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          let sheetName = requestName
-            .replace(/[\\/?*[\]:]/g, "_")
-            .substring(0, 31);
-          if (!sheetName) sheetName = "Sheet";
-
-          let finalSheetName = sheetName;
-          let counter = 1;
-          while (workbook.SheetNames.includes(finalSheetName)) {
-            finalSheetName = `${sheetName.substring(0, 28)}_${counter}`;
-            counter++;
-          }
-
-          XLSX.utils.book_append_sheet(workbook, worksheet, finalSheetName);
+          const worksheet = XLSX.utils.json_to_sheet(mtcData.rows);
+          let sheetName =
+            tc.name.replace(/[\\/?*[\]:]/g, "_").substring(0, 31) || "Sheet";
+          XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
         }
       }
 
       if (hasData) {
-        XLSX.writeFile(
-          workbook,
-          `${project.name.replace(/\s+/g, "_")}_Execution_Report.xlsx`,
-        );
+        XLSX.writeFile(workbook, `${mod.name.replace(/\s+/g, "_")}_MTC.xlsx`);
+        toast.success("Module MTC data downloaded!");
+      } else {
+        toast.error("No MTC data found for this module.");
       }
-    } catch (e) {
-      console.error("Automation Error:", e);
-      alert("An error occurred while running automation.");
-    } finally {
-      setIsExecutingAutomation(false);
     }
+  };
+
+  const handleExportModulePostman = (id: string) => {
+    const mod = project.savedModules?.find((m) => m.id === id);
+    if (!mod) return;
+
+    const items: any[] = [];
+
+    mod.testCaseIds.forEach((tcId) => {
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (!tc) return;
+
+      const mtcData = mod.mtcData[tcId];
+      if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
+        mtcData.rawRows.forEach((rawRow) => {
+          const baseUrl = tc.url.split("/").slice(0, 3).join("/");
+          const queryParams = Object.entries(rawRow.queryParams || {})
+            .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+            .map(
+              ([k, v]) =>
+                `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
+            )
+            .join("&");
+
+          const fullUrl =
+            baseUrl + rawRow.endPoint + (queryParams ? `?${queryParams}` : "");
+          const headerEntries = Object.entries(rawRow.headerParams || {})
+            .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+            .map(([k, v]) => ({ key: k, value: String(v) }));
+
+          if (rawRow.auth) {
+            headerEntries.push({ key: "Authorization", value: rawRow.auth });
+          }
+
+          items.push({
+            name: `${tc.name} - ${rawRow.set} - ${rawRow.summary}`,
+            request: {
+              method: rawRow.httpMethod.toUpperCase(),
+              header: headerEntries,
+              body: {
+                mode: "raw",
+                raw: rawRow.payload || "",
+              },
+              url: {
+                raw: fullUrl,
+                host: [baseUrl.replace(/^https?:\/\//, "")],
+                path: rawRow.endPoint.split("/").filter(Boolean),
+                query: Object.entries(rawRow.queryParams || {})
+                  .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+                  .map(([k, v]) => ({ key: k, value: String(v) })),
+              },
+            },
+            response: [],
+          });
+        });
+      } else {
+        items.push({
+          name: tc.name,
+          request: {
+            method: tc.method.toUpperCase(),
+            header: Object.entries(tc.headers)
+              .filter(([_, v]) => v)
+              .map(([k, v]) => ({ key: k, value: v })),
+            body: {
+              mode: "raw",
+              raw: tc.body,
+            },
+            url: {
+              raw: tc.url,
+              host: [tc.url.split("/")[2]],
+              path: tc.url.split("/").slice(3),
+            },
+          },
+          response: [],
+        });
+      }
+    });
+
+    const postman = {
+      info: {
+        name: `${mod.name} - Postman Export`,
+        schema:
+          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      },
+      item: items,
+    };
+
+    const blob = new Blob([JSON.stringify(postman, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${mod.name.replace(/\s+/g, "_")}_postman.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportModuleFireflink = (id: string) => {
+    const mod = project.savedModules?.find((m) => m.id === id);
+    if (!mod) return;
+
+    const workbook = XLSX.utils.book_new();
+    const fireflinkData: any[] = [];
+
+    mod.testCaseIds.forEach((tcId) => {
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (!tc) return;
+
+      const mtcData = mod.mtcData[tcId];
+      if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
+        mtcData.rawRows.forEach((rawRow) => {
+          fireflinkData.push({
+            "Test Case Name": `${tc.name} - ${rawRow.summary}`,
+            "Module Name": mod.name,
+            "HTTP Method": rawRow.httpMethod.toUpperCase(),
+            "Endpoint URL":
+              tc.url.split("/").slice(0, 3).join("/") + rawRow.endPoint,
+            Headers: JSON.stringify(rawRow.headerParams || {}),
+            "Query Parameters": JSON.stringify(rawRow.queryParams || {}),
+            "Request Body": rawRow.payload || "",
+            "Expected Status": rawRow.expectedStatus || "200",
+          });
+        });
+      } else {
+        fireflinkData.push({
+          "Test Case Name": tc.name,
+          "Module Name": mod.name,
+          "HTTP Method": tc.method.toUpperCase(),
+          "Endpoint URL": tc.url,
+          Headers: JSON.stringify(tc.headers || {}),
+          "Query Parameters": "",
+          "Request Body": tc.body || "",
+          "Expected Status": "200",
+        });
+      }
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(fireflinkData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Fireflink_Data");
+    XLSX.writeFile(workbook, `${mod.name.replace(/\s+/g, "_")}_fireflink.xlsx`);
+    toast.success("Module exported to Fireflink format!");
   };
 
   const handleGenerateMTC = async (ids: string[]) => {
@@ -656,6 +700,17 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               <i className="fas fa-code mr-2"></i>
               Variables
             </button>
+            <button
+              onClick={() => setActiveTab("modules")}
+              className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                activeTab === "modules"
+                  ? "border-indigo-500 theme-accent-text theme-bg-surface"
+                  : "border-transparent theme-text-secondary hover:theme-text-primary hover:theme-bg-surface"
+              }`}
+            >
+              <i className="fas fa-cubes mr-2"></i>
+              Modules
+            </button>
           </div>
         </div>
 
@@ -669,8 +724,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               testCases={project.savedTestCases}
               onDelete={handleDeleteTestCases}
               onGenerateMTC={handleGenerateMTC}
-              onRunAutomation={handleRunAutomation}
-              isExecuting={isExecutingAutomation}
+              onSaveModule={handleSaveModule}
               isGeneratingMTC={isGeneratingMTC}
               project={project}
               generatedMTCData={generatedMTCData}
@@ -712,6 +766,21 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
             <VariablesPanel
               variables={variables}
               onVariablesChange={handleUpdateVariables}
+            />
+          </div>
+
+          {/* Modules Tab */}
+          <div
+            className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "modules" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
+          >
+            <ModulesPanel
+              modules={project.savedModules || []}
+              project={project}
+              onDelete={handleDeleteModules}
+              onDownload={handleDownloadModule}
+              onExportPostman={handleExportModulePostman}
+              onExportFireflink={handleExportModuleFireflink}
+              isExecuting={isExecutingAutomation}
             />
           </div>
         </div>

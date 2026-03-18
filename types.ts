@@ -114,6 +114,7 @@ export interface SavedTestCase {
   formData: KVItem[];
   urlEncoded: KVItem[];
   assertions: Assertion[];
+  preRequest: Capture[];
   captures: Capture[];
   preRequestScript?: string;
   postResponseScript?: string;
@@ -180,6 +181,14 @@ export interface AppSettings {
   };
 }
 
+export interface SavedModule {
+  id: string;
+  name: string;
+  testCaseIds: string[];
+  mtcData: Record<string, { rows: any[]; rawRows: any[] }>;
+  createdAt: number;
+}
+
 export interface SwaggerProject {
   id: string;
   name: string;
@@ -188,6 +197,7 @@ export interface SwaggerProject {
   spec: any;
   endpoints: ApiEndpoint[];
   savedTestCases: SavedTestCase[];
+  savedModules?: SavedModule[]; // Added for saved modules
   createdAt: number;
 }
 
