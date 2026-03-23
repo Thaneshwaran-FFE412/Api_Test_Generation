@@ -13,8 +13,11 @@ import TestCasesPanel from "../components/TestCasesPanel";
 import VariablesPanel from "../components/VariablesPanel";
 import ModulesPanel from "../components/ModulesPanel";
 import ReportModal from "../components/ReportModal";
-import { runAutomatedTests } from "../services/automationService";
-import { generateMTCData } from "../utils/mtcGenerator";
+import {
+  runAutomatedTests,
+  applySubstitutionsToExcelRow,
+} from "../services/automationService";
+import { generateMTCData, substituteVariables } from "../utils/mtcGenerator";
 import { formatAndAppendSheet } from "../utils/excelFormatter";
 import * as XLSX from "xlsx-js-style";
 
@@ -204,23 +207,61 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
     const mod = project.savedModules?.find((m) => m.id === id);
     if (!mod) return;
 
+    const getDependenciesString = (
+      tcId: string,
+      visited = new Set<string>(),
+    ): string[] => {
+      if (visited.has(tcId)) return [];
+      visited.add(tcId);
+      const tc = project.savedTestCases.find((t) => t.id === tcId);
+      if (tc && tc.dependentOn) {
+        const dep = project.savedTestCases.find((t) => t.id === tc.dependentOn);
+        if (dep) {
+          return [...getDependenciesString(dep.id, visited), dep.name];
+        }
+      }
+      return [];
+    };
+
     if (withAutomation) {
       setIsExecutingAutomation(true);
       try {
-        const { results, excelDataByTestCase: autoExcelData } =
-          await runAutomatedTests(
-            mod.testCaseIds,
-            project.savedTestCases,
-            globalAuth,
-            variables,
-            project.endpoints,
-            mod.mtcData,
-          );
+        const {
+          results,
+          excelDataByTestCase: autoExcelData,
+          updatedVariables,
+        } = await runAutomatedTests(
+          mod.testCaseIds,
+          project.savedTestCases,
+          globalAuth,
+          variables,
+          project.endpoints,
+          mod.mtcData,
+        );
+
+        setVariables(updatedVariables);
 
         const workbook = XLSX.utils.book_new();
         let hasData = false;
 
-        for (const tcId of mod.testCaseIds) {
+        let allTcIds = Object.keys(mod.mtcData);
+        const sortedIds: string[] = [];
+        const visited = new Set<string>();
+
+        const visit = (tcId: string) => {
+          if (visited.has(tcId)) return;
+          const tc = project.savedTestCases.find((t) => t.id === tcId);
+          if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
+            visit(tc.dependentOn);
+          }
+          visited.add(tcId);
+          sortedIds.push(tcId);
+        };
+
+        allTcIds.forEach(visit);
+        allTcIds = sortedIds;
+
+        for (const tcId of allTcIds) {
           const tc = project.savedTestCases.find((t) => t.id === tcId);
           if (!tc) continue;
 
@@ -234,7 +275,15 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
             hasData = true;
             const moduleName = endpoint.tags?.[0] || "Default Module";
             const clonedRows = sheetRows.map((row: any) => ({ ...row }));
-            formatAndAppendSheet(workbook, clonedRows, moduleName, tc.name);
+            const deps = getDependenciesString(tc.id);
+            const depsString = deps.length > 0 ? deps.join(", ") : "None";
+            formatAndAppendSheet(
+              workbook,
+              clonedRows,
+              moduleName,
+              tc.name,
+              depsString,
+            );
           }
         }
 
@@ -294,9 +343,58 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
         if (mtcData && mtcData.rows.length > 0) {
           hasData = true;
           const moduleName = endpoint.tags?.[0] || "Default Module";
-          // We need to clone the rows because formatAndAppendSheet mutates them (deletes empty columns)
-          const clonedRows = mtcData.rows.map((row: any) => ({ ...row }));
-          formatAndAppendSheet(workbook, clonedRows, moduleName, tc.name);
+
+          const getExecutionPlan = (
+            tId: string,
+            v = new Set<string>(),
+          ): string[] => {
+            if (v.has(tId)) return [];
+            v.add(tId);
+            const t = project.savedTestCases.find((x) => x.id === tId);
+            if (!t) return [];
+            let plan: string[] = [];
+            if (t.dependentOn) {
+              plan = plan.concat(getExecutionPlan(t.dependentOn, v));
+            }
+            plan.push(tId);
+            return plan;
+          };
+
+          const planIds = getExecutionPlan(tcId);
+          const depIds = planIds.slice(0, planIds.length - 1);
+
+          const interleavedRows: any[] = [];
+          let currentSlNo = 1;
+
+          for (let i = 0; i < mtcData.rows.length; i++) {
+            // Add dependency rows first
+            for (const dId of depIds) {
+              const dData = mod.mtcData[dId];
+              if (dData && dData.rows.length > 0) {
+                const dRow = { ...dData.rows[0] };
+                dRow["Sl No"] = currentSlNo++;
+                dRow["Test Case Summary"] =
+                  `[Dependency] ${dRow["Test Case Summary"]}`;
+                applySubstitutionsToExcelRow(dRow, variables);
+                interleavedRows.push(dRow);
+              }
+            }
+            // Add target row
+            const tRow = { ...mtcData.rows[i] };
+            tRow["Sl No"] = currentSlNo++;
+            applySubstitutionsToExcelRow(tRow, variables);
+            interleavedRows.push(tRow);
+          }
+
+          const deps = getDependenciesString(tc.id);
+          const depsString = deps.length > 0 ? deps.join(", ") : "None";
+          formatAndAppendSheet(
+            workbook,
+            interleavedRows,
+            moduleName,
+            tc.name,
+            depsString,
+          );
         }
       }
 

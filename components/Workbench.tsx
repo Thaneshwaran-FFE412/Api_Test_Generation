@@ -34,15 +34,20 @@ const substituteVariables = (
 ): string => {
   if (typeof str !== "string") return str;
   // Support both {{key}} and $key
-  let result = str.replace(
-    /\{\{(.+?)\}\}/g,
-    (_, key) => vars[key] || `{{${key}}}`,
-  );
+  let result = str.replace(/\{\{(.+?)\}\}/g, (_, key) => {
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return `{{${key}}}`;
+  });
   result = result.replace(/\$([a-zA-Z0-9_]+)/g, (match, key) => {
-    return vars[key] !== undefined ? vars[key] : match;
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return match;
   });
   result = result.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
-    return vars[key] !== undefined ? vars[key] : match;
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return match;
   });
   return result;
 };

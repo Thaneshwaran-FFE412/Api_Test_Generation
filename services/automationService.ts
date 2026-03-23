@@ -4,25 +4,133 @@ import {
   GlobalAuth,
   ApiEndpoint,
 } from "../types";
-import { generateMTCData } from "../utils/mtcGenerator";
+import {
+  generateMTCData,
+  substituteVariables,
+  formatParams,
+  formatPathParams,
+} from "../utils/mtcGenerator";
 
-// Helper to substitute variables {{key}} -> value
-const substituteVariables = (
-  str: string,
+export const applySubstitutionsToExcelRow = (
+  row: any,
   vars: Record<string, string>,
-): string => {
-  if (typeof str !== "string") return str;
-  let result = str.replace(
-    /\{\{(.+?)\}\}/g,
-    (_, key) => vars[key] || `{{${key}}}`,
+) => {
+  const fieldsToSubstitute = [
+    "End Point",
+    "Path Params",
+    "Query Params",
+    "Header Params",
+    "Payload (JSON)",
+    "Payload (FormData)",
+    "Payload (Text)",
+    "Request Payload (json)",
+    "Request Payload (xml)",
+    "Request Payload (text)",
+    "Request Payload (form-data)",
+    "Request Payload (x-www-form-urlencoded)",
+    "Request Payload",
+    "Auth (Bearer)",
+    "Auth (Basic)",
+    "Auth (API Key)",
+  ];
+  fieldsToSubstitute.forEach((field) => {
+    if (row[field] && typeof row[field] === "string") {
+      row[field] = substituteVariables(row[field], vars);
+    }
+  });
+};
+
+const substituteObject = (obj: any, variables: Record<string, string>): any => {
+  if (!obj) return obj;
+  if (typeof obj === "string") return substituteVariables(obj, variables);
+  if (Array.isArray(obj))
+    return obj.map((item) => substituteObject(item, variables));
+  if (typeof obj === "object") {
+    const res: any = {};
+    for (const key in obj) {
+      res[key] = substituteObject(obj[key], variables);
+    }
+    return res;
+  }
+  return obj;
+};
+
+const resolveRawRow = (rawRow: any, variables: Record<string, string>) => {
+  const resolvedPathParams = substituteObject(rawRow.pathParams, variables);
+
+  let resolvedEndPoint = rawRow.endPoint || "";
+  resolvedEndPoint = resolvedEndPoint.replace(
+    /\$\{([^}]+)\}/g,
+    (match: string, key: string) => {
+      return resolvedPathParams[key] !== undefined
+        ? String(resolvedPathParams[key])
+        : "";
+    },
   );
-  result = result.replace(/\$([a-zA-Z0-9_]+)/g, (match, key) =>
-    vars[key] !== undefined ? vars[key] : match,
+  resolvedEndPoint = resolvedEndPoint.replace(
+    /{([^}]+)}/g,
+    (match: string, key: string) => {
+      return resolvedPathParams[key] !== undefined
+        ? String(resolvedPathParams[key])
+        : "";
+    },
   );
-  result = result.replace(/\$\{([^}]+)\}/g, (match, key) =>
-    vars[key] !== undefined ? vars[key] : match,
-  );
-  return result;
+  resolvedEndPoint = substituteVariables(resolvedEndPoint, variables);
+
+  return {
+    ...rawRow,
+    endPoint: resolvedEndPoint,
+    pathParams: resolvedPathParams,
+    queryParams: substituteObject(rawRow.queryParams, variables),
+    headerParams: substituteObject(rawRow.headerParams, variables),
+    auth: substituteVariables(rawRow.auth || "", variables),
+    payload: substituteObject(rawRow.payload, variables),
+  };
+};
+
+const updateExcelRowFromResolved = (excelRow: any, resolvedRawRow: any) => {
+  if (excelRow["End Point"]) excelRow["End Point"] = resolvedRawRow.endPoint;
+  if (excelRow["Path Params"])
+    excelRow["Path Params"] = formatPathParams(resolvedRawRow.pathParams);
+  if (excelRow["Query Params"])
+    excelRow["Query Params"] = formatParams(resolvedRawRow.queryParams);
+  if (excelRow["Header Params"])
+    excelRow["Header Params"] = formatParams(resolvedRawRow.headerParams);
+
+  const payloadFields = [
+    "Payload (JSON)",
+    "Payload (FormData)",
+    "Payload (Text)",
+    "Request Payload (json)",
+    "Request Payload (xml)",
+    "Request Payload (text)",
+    "Request Payload (form-data)",
+    "Request Payload (x-www-form-urlencoded)",
+    "Request Payload",
+  ];
+  payloadFields.forEach((field) => {
+    if (excelRow[field]) {
+      if (typeof resolvedRawRow.payload === "object") {
+        if (
+          field.includes("form-data") ||
+          field.includes("x-www-form-urlencoded")
+        ) {
+          excelRow[field] = formatParams(resolvedRawRow.payload);
+        } else {
+          excelRow[field] = JSON.stringify(resolvedRawRow.payload, null, 2);
+        }
+      } else {
+        excelRow[field] = String(resolvedRawRow.payload);
+      }
+    }
+  });
+
+  const authFields = ["Auth (Bearer)", "Auth (Basic)", "Auth (API Key)"];
+  authFields.forEach((field) => {
+    if (excelRow[field]) {
+      excelRow[field] = resolvedRawRow.auth;
+    }
+  });
 };
 
 export const runAutomatedTests = async (
@@ -35,6 +143,7 @@ export const runAutomatedTests = async (
 ): Promise<{
   results: ExecutionResult[];
   excelDataByTestCase: Record<string, any[]>;
+  updatedVariables: Record<string, string>;
 }> => {
   const results: ExecutionResult[] = [];
   const excelDataByTestCase: Record<string, any[]> = {};
@@ -119,9 +228,14 @@ export const runAutomatedTests = async (
           depRawRow.slNo = currentSlNo;
 
           try {
+            const resolvedDepRawRow = resolveRawRow(
+              depRawRow,
+              currentVariables,
+            );
+            updateExcelRowFromResolved(depExcelRow, resolvedDepRawRow);
             const depResult = await executeMTCScenario(
               depTc,
-              depRawRow,
+              resolvedDepRawRow,
               globalAuth,
               currentVariables,
             );
@@ -190,9 +304,11 @@ export const runAutomatedTests = async (
         rawRow.slNo = currentSlNo;
 
         try {
+          const resolvedRawRow = resolveRawRow(rawRow, currentVariables);
+          updateExcelRowFromResolved(excelRow, resolvedRawRow);
           const result = await executeMTCScenario(
             targetTc,
-            rawRow,
+            resolvedRawRow,
             globalAuth,
             currentVariables,
           );
@@ -242,7 +358,7 @@ export const runAutomatedTests = async (
     }
   }
 
-  return { results, excelDataByTestCase };
+  return { results, excelDataByTestCase, updatedVariables: currentVariables };
 };
 
 const executeMTCScenario = async (
@@ -255,14 +371,18 @@ const executeMTCScenario = async (
 
   // 1. Construct URL
   let finalUrl = tc.url;
+
+  // Replace path params in URL string first to avoid URL encoding issues with {}
+  Object.entries(rawRow.pathParams).forEach(([k, v]) => {
+    finalUrl = finalUrl.replace(new RegExp(`\\$\\{${k}\\}`, "g"), String(v));
+    finalUrl = finalUrl.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+  });
+
+  // Substitute global variables (e.g., {{baseUrl}})
+  finalUrl = substituteVariables(finalUrl, variables);
+
   try {
-    const urlObj = new URL(substituteVariables(finalUrl, variables));
-    // Replace path params in URL
-    let path = urlObj.pathname;
-    Object.entries(rawRow.pathParams).forEach(([k, v]) => {
-      path = path.replace(`{${k}}`, String(v));
-    });
-    urlObj.pathname = path;
+    const urlObj = new URL(finalUrl);
 
     // Add query params
     Object.entries(rawRow.queryParams).forEach(([k, v]) => {
@@ -279,7 +399,7 @@ const executeMTCScenario = async (
   const headers = new Headers();
   Object.entries(rawRow.headerParams).forEach(([k, v]) => {
     if (v !== null && v !== undefined && v !== "") {
-      headers.append(k, substituteVariables(String(v), variables));
+      headers.append(k, String(v));
     }
   });
 
@@ -301,17 +421,44 @@ const executeMTCScenario = async (
     headers.set("Authorization", `Basic ${creds}`);
   }
 
-  let body = rawRow.payload;
-  if (body) {
-    if (typeof body === "string") {
-      body = substituteVariables(body, variables);
-    } else if (typeof body === "object") {
-      body = JSON.parse(substituteVariables(JSON.stringify(body), variables));
+  // 3. Prepare Body
+  let body: any = undefined;
+  if (
+    rawRow.payload &&
+    (typeof rawRow.payload === "string"
+      ? rawRow.payload.length > 0
+      : Object.keys(rawRow.payload).length > 0)
+  ) {
+    if (tc.bodyType === "raw") {
+      if (tc.rawFormat === "json") {
+        body =
+          typeof rawRow.payload === "string"
+            ? rawRow.payload
+            : JSON.stringify(rawRow.payload);
+      } else {
+        body = String(rawRow.payload);
+      }
+    } else if (tc.bodyType === "form-data") {
+      const items: { key: string; value: string }[] = [];
+      Object.entries(rawRow.payload).forEach(([k, v]) => {
+        items.push({ key: k, value: String(v) });
+      });
+      body = { _isFormData: true, items };
+    } else if (tc.bodyType === "x-www-form-urlencoded") {
+      const params = new URLSearchParams();
+      Object.entries(rawRow.payload).forEach(([k, v]) => {
+        params.append(k, String(v));
+      });
+      body = params.toString();
     }
   }
 
   if (body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+    if (tc.bodyType === "raw" && tc.rawFormat === "json") {
+      headers.set("Content-Type", "application/json");
+    } else if (tc.bodyType === "x-www-form-urlencoded") {
+      headers.set("Content-Type", "application/x-www-form-urlencoded");
+    }
   }
 
   const plainHeaders: Record<string, string> = {};

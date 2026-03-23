@@ -5,6 +5,7 @@ export const formatAndAppendSheet = (
   sheetRows: any[],
   moduleName: string,
   requestName: string,
+  dependentScripts?: string,
 ) => {
   if (sheetRows.length === 0) return;
 
@@ -30,16 +31,15 @@ export const formatAndAppendSheet = (
   });
 
   const worksheet = XLSX.utils.json_to_sheet([]);
-  XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A4" });
+  XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: "A5" });
 
-  XLSX.utils.sheet_add_aoa(
-    worksheet,
-    [
-      ["Module Name", moduleName],
-      ["Request Name", requestName],
-    ],
-    { origin: "A1" },
-  );
+  const metaData = [
+    ["Module Name", moduleName],
+    ["Request Name", requestName],
+    ["Dependent Scripts", dependentScripts || "None"],
+  ];
+
+  XLSX.utils.sheet_add_aoa(worksheet, metaData, { origin: "A1" });
 
   const colWidths: Record<string, number> = {
     "Sl No": 5,
@@ -120,17 +120,17 @@ export const formatAndAppendSheet = (
       const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
       if (!worksheet[cellAddress]) continue;
 
-      if (R === 0 || R === 1) {
-        // Meta rows (Module Name, Request Name)
+      if (R === 0 || R === 1 || R === 2) {
+        // Meta rows (Module Name, Request Name, Dependent Scripts)
         if (C === 0) {
           worksheet[cellAddress].s = metaLabelStyle;
         } else if (C === 1) {
           worksheet[cellAddress].s = metaValueStyle;
         }
-      } else if (R === 3) {
+      } else if (R === 4) {
         // Table Headers
         worksheet[cellAddress].s = headerStyle;
-      } else if (R > 3) {
+      } else if (R > 4) {
         // Data Rows
         worksheet[cellAddress].s = dataStyle;
       }

@@ -1,5 +1,79 @@
 import { KVItem, SavedTestCase, ApiEndpoint } from "../types";
 
+export const substituteVariables = (
+  str: string,
+  vars: Record<string, string>,
+): string => {
+  if (typeof str !== "string") return str;
+  let result = str;
+
+  // Faker variables
+  // Number: "{{$randomNumber_min_max}}"
+  result = result.replace(
+    /"\{\{\$randomNumber_(\d+)_(\d+)\}\}"/g,
+    (_, min, max) => {
+      return String(
+        Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) +
+          parseInt(min),
+      );
+    },
+  );
+  result = result.replace(
+    /\{\{\$randomNumber_(\d+)_(\d+)\}\}/g,
+    (_, min, max) => {
+      return String(
+        Math.floor(Math.random() * (parseInt(max) - parseInt(min) + 1)) +
+          parseInt(min),
+      );
+    },
+  );
+
+  // Boolean: "{{$randomBoolean}}"
+  result = result.replace(/"\{\{\$randomBoolean\}\}"/g, () => {
+    return Math.random() > 0.5 ? "true" : "false";
+  });
+  result = result.replace(/\{\{\$randomBoolean\}\}/g, () => {
+    return Math.random() > 0.5 ? "true" : "false";
+  });
+
+  // String: "{{$randomString_len}}"
+  result = result.replace(/\{\{\$randomString_(\d+)\}\}/g, (_, len) => {
+    const chars =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let res = "";
+    for (let i = 0; i < parseInt(len); i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  });
+
+  // Option: "{{$randomOption_a|b|c}}"
+  result = result.replace(/\{\{\$randomOption_(.+?)\}\}/g, (_, optionsStr) => {
+    const options = optionsStr.split("|");
+    return options[Math.floor(Math.random() * options.length)];
+  });
+
+  // Normal variables
+  result = result.replace(/\{\{(.+?)\}\}/g, (match, key) => {
+    // Don't replace faker variables again if they didn't match above
+    if (key.startsWith("$random")) return match;
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return match;
+  });
+  result = result.replace(/\$([a-zA-Z0-9_]+)/g, (match, key) => {
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return match;
+  });
+  result = result.replace(/\$\{([^}]+)\}/g, (match, key) => {
+    if (vars[key] !== undefined) return vars[key];
+    if (vars["$" + key] !== undefined) return vars["$" + key];
+    return match;
+  });
+  return result;
+};
+
 const parseConstraint = (constraintStr?: string) => {
   const c: any = { required: false, type: "string" };
   if (!constraintStr) return c;
@@ -24,30 +98,25 @@ const generateValidData = (
   options?: string[],
 ) => {
   if (options && options.length > 0) {
-    return options[Math.floor(Math.random() * options.length)];
+    return `{{$randomOption_${options.join("|")}}}`;
   }
   if (constraint.enum && constraint.enum.length > 0) {
-    return constraint.enum[Math.floor(Math.random() * constraint.enum.length)];
+    return `{{$randomOption_${constraint.enum.join("|")}}}`;
   }
   const type = constraint.type || dataType || "string";
   if (type === "number" || type === "integer") {
     let min = constraint.min !== undefined ? constraint.min : 1;
     let max = constraint.max !== undefined ? constraint.max : 1000;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    return `{{$randomNumber_${min}_${max}}}`;
   }
   if (type === "boolean") {
-    return true;
+    return `{{$randomBoolean}}`;
   }
   // string
   let len = constraint.minLen !== undefined ? constraint.minLen : 5;
   if (constraint.maxLen !== undefined && len > constraint.maxLen)
     len = constraint.maxLen;
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let res = "";
-  for (let i = 0; i < len; i++)
-    res += chars.charAt(Math.floor(Math.random() * chars.length));
-  return res;
+  return `{{$randomString_${len}}}`;
 };
 
 const generateInvalidData = (
@@ -60,7 +129,7 @@ const generateInvalidData = (
     (options && options.length > 0) ||
     (constraint.enum && constraint.enum.length > 0)
   ) {
-    return "invalid_enum_value_" + Math.random().toString(36).substring(7);
+    return "invalid_enum_value_{{$randomString_5}}";
   }
   const type = constraint.type || dataType || "string";
   if (type === "number" || type === "integer") {
@@ -134,6 +203,49 @@ const getFreshPayload = (
       excludeKeys,
     );
   }
+
+  if (tc.bodyType === "form-data" && tc.formData) {
+    const result: Record<string, any> = {};
+    tc.formData.forEach((f) => {
+      if (f.enabled && !excludeKeys.includes(f.key)) {
+        if (overrides.hasOwnProperty(f.key)) {
+          result[f.key] = overrides[f.key];
+        } else if (f.mode === "dynamic") {
+          result[f.key] = generateValidData(
+            parseConstraint(f.constraint),
+            f.value,
+            f.dataType,
+            f.options,
+          );
+        } else {
+          result[f.key] = f.value;
+        }
+      }
+    });
+    return result;
+  }
+
+  if (tc.bodyType === "x-www-form-urlencoded" && tc.urlEncoded) {
+    const result: Record<string, any> = {};
+    tc.urlEncoded.forEach((f) => {
+      if (f.enabled && !excludeKeys.includes(f.key)) {
+        if (overrides.hasOwnProperty(f.key)) {
+          result[f.key] = overrides[f.key];
+        } else if (f.mode === "dynamic") {
+          result[f.key] = generateValidData(
+            parseConstraint(f.constraint),
+            f.value,
+            f.dataType,
+            f.options,
+          );
+        } else {
+          result[f.key] = f.value;
+        }
+      }
+    });
+    return result;
+  }
+
   return tc.bodyType === "raw" ? tc.body : "";
 };
 
@@ -169,11 +281,11 @@ const getAuthString = (auth: any, isFresh: boolean) => {
   return "";
 };
 
-const formatPathParams = (params: Record<string, any>) => {
+export const formatPathParams = (params: Record<string, any>) => {
   return Object.values(params).join("\n");
 };
 
-const formatParams = (params: Record<string, any>) => {
+export const formatParams = (params: Record<string, any>) => {
   return Object.entries(params)
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
@@ -246,8 +358,12 @@ const buildJsonPayload = (
         overrides[f.key] !== undefined ? overrides[f.key] : f.value;
       // Convert type if it's not an override (overrides are already typed)
       if (overrides[f.key] === undefined) {
-        if (f.dataType === "number") val = Number(val);
-        else if (f.dataType === "boolean") val = val === "true";
+        const isTemplateVar =
+          typeof val === "string" && (val.includes("{{") || val.includes("$"));
+        if (!isTemplateVar) {
+          if (f.dataType === "number") val = Number(val);
+          else if (f.dataType === "boolean") val = val === "true";
+        }
       }
       updateObj(parsed, f.key, val, false);
     });
@@ -314,9 +430,29 @@ export const generateMTCData = (
     expected: string,
   ) => {
     let resolvedEndPoint = endPoint;
+    resolvedEndPoint = resolvedEndPoint.replace(
+      /\$\{([^}]+)\}/g,
+      (match, key) => {
+        return pathParams[key] !== undefined ? String(pathParams[key]) : "";
+      },
+    );
     resolvedEndPoint = resolvedEndPoint.replace(/{([^}]+)}/g, (match, key) => {
       return pathParams[key] !== undefined ? String(pathParams[key]) : "";
     });
+
+    const subParams = (params: Record<string, any>) => {
+      const res: Record<string, any> = {};
+      for (const k in params) {
+        res[k] = params[k];
+      }
+      return res;
+    };
+
+    const subPathParams = subParams(pathParams);
+    const subQueryParams = subParams(queryParams);
+    const subHeaderParams = subParams(headerParams);
+    const subAuth = auth;
+    const subPayload = payload;
 
     allRows.push({
       "Sl No": slNo++,
@@ -324,11 +460,12 @@ export const generateMTCData = (
       Set: set,
       "Test Case Summary": summary,
       "Http Method": httpMethod,
-      "Path Params": formatPathParams(pathParams),
-      "Query Params": formatParams(queryParams),
-      "Header Params": formatParams(headerParams),
-      [authTypeStr]: auth,
-      [payloadTypeStr]: payload,
+      "Path Params": formatPathParams(subPathParams),
+      "Query Params": formatParams(subQueryParams),
+      "Header Params": formatParams(subHeaderParams),
+      [authTypeStr]: subAuth,
+      [payloadTypeStr]:
+        typeof subPayload === "object" ? formatParams(subPayload) : subPayload,
       "Expected Result": expected,
       "Actual Result": "",
       Status: "",
@@ -337,15 +474,15 @@ export const generateMTCData = (
 
     rawRows.push({
       slNo: slNo - 1,
-      endPoint: resolvedEndPoint,
+      endPoint: endPoint,
       set,
       summary,
       httpMethod,
-      pathParams,
-      queryParams,
-      headerParams,
-      auth,
-      payload,
+      pathParams: subPathParams,
+      queryParams: subQueryParams,
+      headerParams: subHeaderParams,
+      auth: subAuth,
+      payload: subPayload,
       expected,
       postResponseScript: tc.postResponseScript,
       postResponse: tc.captures,
