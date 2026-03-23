@@ -581,6 +581,18 @@ const Workbench: React.FC<WorkbenchProps> = ({
     setJsonFields([]);
     setFormData(detectedFormData);
     setUrlEncoded(detectedUrlEncoded);
+
+    // Default assertion based on method
+    const defaultStatusCode =
+      endpoint.method.toUpperCase() === "POST" ? "201" : "200";
+    setAssertions([
+      {
+        id: Math.random().toString(),
+        type: "status_code",
+        operator: "eq",
+        expected: defaultStatusCode,
+      },
+    ]);
   }, [endpoint.id, baseUrl]); // Dependency changed to ID to be stable
 
   useEffect(() => {
@@ -1550,7 +1562,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                         id: Math.random().toString(),
                         type: "status_code",
                         operator: "eq",
-                        expected: "200",
+                        expected: method === "POST" ? "201" : "200",
                       },
                     ])
                   }
