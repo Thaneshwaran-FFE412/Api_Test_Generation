@@ -406,7 +406,11 @@ const executeMTCScenario = async (
         capture.variableName
       ) {
         try {
-          const pathParts = capture.property.replace("$.", "").split(".");
+          const pathParts = capture.property
+            .replace(/^\$\./, "")
+            .replace(/\[(\d+)\]/g, ".$1")
+            .split(".")
+            .filter(Boolean);
           let target =
             typeof responseBody === "string"
               ? JSON.parse(responseBody)

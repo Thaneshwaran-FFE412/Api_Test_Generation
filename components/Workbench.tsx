@@ -669,11 +669,18 @@ const Workbench: React.FC<WorkbenchProps> = ({
           break;
         case "json_path":
           if (a.property && res.response.body) {
-            const pathParts = a.property.replace("$.", "").split(".");
+            const pathParts = a.property
+              .replace(/^\$\./, "")
+              .replace(/\[(\d+)\]/g, ".$1")
+              .split(".")
+              .filter(Boolean);
             let target = res.response.body;
             for (const part of pathParts) {
               if (target && typeof target === "object") target = target[part];
-              else break;
+              else {
+                target = undefined;
+                break;
+              }
             }
             actualValue = target?.toString() || "not found";
           }
@@ -989,7 +996,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
             capture.variableName
           ) {
             try {
-              const pathParts = capture.property.replace("$.", "").split(".");
+              const pathParts = capture.property
+                .replace(/^\$\./, "")
+                .replace(/\[(\d+)\]/g, ".$1")
+                .split(".")
+                .filter(Boolean);
               let target =
                 typeof responseBody === "string"
                   ? JSON.parse(responseBody)
@@ -1299,10 +1310,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
                       name: "Generate Random String",
                       code: "const randomStr = Math.random().toString(36).substring(2, 10);",
                     },
-                    // {
-                    //   name: "Generate UUID",
-                    //   code: "const uuid = crypto.randomUUID();",
-                    // },
                     {
                       name: "Generate Timestamp",
                       code: "const timestamp = Date.now();",
