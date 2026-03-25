@@ -67,7 +67,7 @@ const ModulesPanel: React.FC<ModulesPanelProps> = ({
             title="Download Module Data"
           >
             <i className="fas fa-download text-sm mb-1"></i>
-            <span className="text-[8px] font-bold uppercase">Download</span>
+            <span className="text-[8px] font-bold uppercase">Download MTC</span>
           </button>
 
           <button
@@ -80,7 +80,9 @@ const ModulesPanel: React.FC<ModulesPanelProps> = ({
             className="flex flex-col items-center justify-center p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-emerald-500/30"
             title="Download with Automation"
           >
-            <i className={`fas ${isExecuting ? 'fa-spinner fa-spin' : 'fa-robot'} text-sm mb-1`}></i>
+            <i
+              className={`fas ${isExecuting ? "fa-spinner fa-spin" : "fa-robot"} text-sm mb-1`}
+            ></i>
             <span className="text-[8px] font-bold uppercase">With Auto</span>
           </button>
 
@@ -129,7 +131,7 @@ const ModulesPanel: React.FC<ModulesPanelProps> = ({
         {modules.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-30">
             <i className="fas fa-cubes text-4xl mb-3"></i>
-            <p className="text-xs font-medium">No saved modules</p>
+            <p className="text-xs font-medium">No saved Executions</p>
           </div>
         ) : (
           <>

@@ -26,7 +26,7 @@ interface WorkspacePageProps {
   updateProject: (p: SwaggerProject) => void;
 }
 
-type WorkspaceTab = "saved" | "workbench" | "variables" | "modules";
+type WorkspaceTab = "saved" | "workbench" | "variables" | "execution";
 
 const WorkspacePage: React.FC<WorkspacePageProps> = ({
   project,
@@ -731,15 +731,15 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
               Variables
             </button>
             <button
-              onClick={() => setActiveTab("modules")}
+              onClick={() => setActiveTab("execution")}
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
-                activeTab === "modules"
+                activeTab === "execution"
                   ? "border-indigo-500 theme-accent-text theme-bg-surface"
                   : "border-transparent theme-text-secondary hover:theme-text-primary hover:theme-bg-surface"
               }`}
             >
               <i className="fas fa-cubes mr-2"></i>
-              Modules
+              Execution
             </button>
           </div>
         </div>
@@ -801,7 +801,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
           {/* Modules Tab */}
           <div
-            className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "modules" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
+            className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "execution" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
           >
             <ModulesPanel
               modules={project.savedModules || []}

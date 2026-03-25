@@ -193,7 +193,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={handleMTC}
             disabled={selectedIds.size === 0 || isGeneratingMTC}
@@ -204,28 +204,8 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
               className={`fas ${isGeneratingMTC ? "fa-spinner fa-spin" : "fa-file-signature"} text-sm mb-1`}
             ></i>
             <span className="text-[8px] font-bold uppercase">
-              {isGeneratingMTC ? "Gen..." : "MTC Gen"}
+              {isGeneratingMTC ? "Gen..." : "Generate MTC"}
             </span>
-          </button>
-
-          <button
-            onClick={handleSaveModule}
-            disabled={selectedIds.size === 0 || !isMTCGeneratedForSelected}
-            className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-blue-500/30"
-            title="Save as Module"
-          >
-            <i className="fas fa-save text-sm mb-1"></i>
-            <span className="text-[8px] font-bold uppercase">Save Mod</span>
-          </button>
-
-          <button
-            onClick={handleExportSwagger}
-            disabled={selectedIds.size === 0}
-            className="flex flex-col items-center justify-center p-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed border border-transparent hover:border-sky-500/30"
-            title="Export Swagger"
-          >
-            <i className="fas fa-file-code text-sm mb-1"></i>
-            <span className="text-[8px] font-bold uppercase">Swagger</span>
           </button>
 
           <button
@@ -385,7 +365,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
             </div>
             <div className="p-6">
               <label className="block text-sm font-medium theme-text-secondary mb-2">
-                Module Name
+                Execution Name
               </label>
               <input
                 type="text"
