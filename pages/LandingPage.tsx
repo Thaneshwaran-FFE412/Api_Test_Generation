@@ -5,20 +5,10 @@ import yaml from "js-yaml";
 import toast from "react-hot-toast";
 
 interface LandingPageProps {
-  user: User | null;
-  projects: SwaggerProject[];
   addProject: (p: SwaggerProject) => void;
-  setActiveProject: (p: SwaggerProject) => void;
-  deleteProject: (id: string) => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({
-  user,
-  projects,
-  addProject,
-  setActiveProject,
-  deleteProject,
-}) => {
+const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,28 +58,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const processSpecString = (
-    rawSpec: string,
-    fileName?: string,
-    isYaml: boolean = false,
-  ) => {
-    let spec: any;
-    try {
-      if (isYaml) {
-        spec = yaml.load(rawSpec);
-      } else {
-        spec = JSON.parse(rawSpec);
-      }
-    } catch (e) {
-      throw new Error(
-        `Invalid format: Spec must be a valid ${isYaml ? "YAML or JSON" : "JSON"} string`,
-      );
-    }
-
-    if (!spec || typeof spec !== "object") {
-      throw new Error("Invalid spec format");
-    }
-
+  const payloadProcessor = (spec, fileName?: string) => {
     const endpoints = parseSpec(spec);
     const baseUrl = getBaseUrl(spec);
 
@@ -104,7 +73,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
       createdAt: Date.now(),
     };
     addProject(newProject);
-    navigate(`/workspace/${newProject.id}`);
+    toast.success("API's Imported successfully");
   };
 
   const handleImportUrl = async () => {
@@ -112,34 +81,15 @@ const LandingPage: React.FC<LandingPageProps> = ({
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: "GET", url }),
-      });
-
-      const proxyRes = await response.json();
-
-      if (proxyRes.error) {
-        throw new Error(
-          proxyRes.error + (proxyRes.details ? `: ${proxyRes.details}` : ""),
-        );
-      }
-
-      if (proxyRes.status >= 400) {
-        throw new Error(
-          `Failed to load Swagger from URL: HTTP ${proxyRes.status} ${proxyRes.statusText}`,
-        );
-      }
-
-      let rawText = proxyRes.data;
-      if (typeof rawText === "object") {
-        rawText = JSON.stringify(rawText);
-      } else if (typeof rawText !== "string") {
-        rawText = String(rawText);
-      }
-
-      processSpecString(rawText);
+      const data: any = await fetch(
+        `http://localhost:8080/project/url?url=${url}`,
+        { method: "POST" },
+      );
+      const response = await data.json();
+      const spec = response.responseObject.projectData;
+      const fileName = response.responseObject.projectName;
+      payloadProcessor(spec, fileName);
+      navigate(`/workspace/${response.responseObject.id}`);
     } catch (err: any) {
       setError(
         err.message ||
@@ -152,7 +102,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>,
   ) => {
     let file: File | undefined;
@@ -163,19 +113,19 @@ const LandingPage: React.FC<LandingPageProps> = ({
       file = e.target.files?.[0];
     }
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const rawText = event.target?.result as string;
-        const isYaml =
-          file.name.endsWith(".yaml") || file.name.endsWith(".yml");
-        processSpecString(rawText, file.name, isYaml);
-      } catch (err: any) {
-        setError(err.message || "Invalid Swagger/OpenAPI file.");
-      }
-    };
-    toast.success("API's Imported successfully");
-    reader.readAsText(file);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const data: any = await fetch("http://localhost:8080/project/create", {
+      method: "POST",
+      body: formData,
+    });
+
+    const response = await data.json();
+    const spec = response.responseObject.projectData;
+    payloadProcessor(spec, file.name);
+    navigate(`/workspace/${response.responseObject.id}`);
   };
 
   return (

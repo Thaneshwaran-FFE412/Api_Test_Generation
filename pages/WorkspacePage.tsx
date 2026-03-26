@@ -23,15 +23,11 @@ import * as XLSX from "xlsx-js-style";
 
 interface WorkspacePageProps {
   project: SwaggerProject;
-  updateProject: (p: SwaggerProject) => void;
 }
 
 type WorkspaceTab = "saved" | "workbench" | "variables" | "execution";
 
-const WorkspacePage: React.FC<WorkspacePageProps> = ({
-  project,
-  updateProject,
-}) => {
+const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(
     null,
   );
@@ -136,7 +132,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       ...project,
       savedTestCases: [...project.savedTestCases, testCase],
     };
-    updateProject(updatedProject);
   };
 
   const handleUpdateVariables = (newVars: Record<string, string>) => {
@@ -150,7 +145,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
         (tc) => !ids.includes(tc.id),
       ),
     };
-    updateProject(updatedProject);
   };
 
   const handleSaveModule = (ids: string[], name: string) => {
@@ -188,7 +182,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
       ...project,
       savedModules: [...(project.savedModules || []), newModule],
     };
-    updateProject(updatedProject);
     toast.success("Module saved successfully!");
   };
 
@@ -199,7 +192,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({
         (m) => !ids.includes(m.id),
       ),
     };
-    updateProject(updatedProject);
     toast.success("Modules deleted successfully!");
   };
 
