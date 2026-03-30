@@ -51,7 +51,7 @@ const substituteVariables = (
   });
   return result;
 };
-
+const BASE_URL = "http://localhost:8080";
 const Workbench: React.FC<WorkbenchProps> = ({
   endpoint,
   baseUrl,
@@ -894,7 +894,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         data: proxyData,
       };
 
-      const response = await fetch("/api/proxy", {
+      const response = await fetch(`${BASE_URL}/endpoint/execute`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -913,22 +913,30 @@ const Workbench: React.FC<WorkbenchProps> = ({
       let statusText = "Proxy Error";
 
       try {
-        const proxyRes = await response.json();
+        const apiRes = await response.json();
+        const proxyRes = apiRes.responseObject;
         if (proxyRes.error) {
           responseBody = proxyRes.details || proxyRes.error;
         } else {
-          statusCode = proxyRes.status;
-          statusText = proxyRes.statusText;
+          statusCode = proxyRes.statusCodeValue;
+          statusText = proxyRes.statusText ?? "";
           resHeaders = proxyRes.headers || {};
-          responseBody = proxyRes.data;
-          if (typeof responseBody === "object") {
+          responseBody = proxyRes.body;
+          if (responseBody !== null && typeof responseBody === "object") {
             responseBody = JSON.stringify(responseBody, null, 2);
-          } else {
+          } else if (responseBody !== null && responseBody !== undefined) {
             responseBody = String(responseBody);
           }
         }
+        if (
+          responseBody == null ||
+          responseBody === undefined ||
+          responseBody === ""
+        ) {
+          responseBody = "No response body";
+        }
       } catch (e) {
-        responseBody = "[Error parsing proxy response]";
+        responseBody = "Invalid response body to parse";
       }
 
       const realResult: ExecutionResult = {
