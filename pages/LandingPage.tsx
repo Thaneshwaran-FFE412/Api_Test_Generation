@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
-import yaml from "js-yaml";
 import toast from "react-hot-toast";
+
+const BASE_URL = "http://localhost:8080";
 
 interface LandingPageProps {
   addProject: (p: SwaggerProject) => void;
@@ -81,10 +82,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
     setIsLoading(true);
     setError("");
     try {
-      const data: any = await fetch(
-        `http://localhost:8080/project/url?url=${url}`,
-        { method: "POST" },
-      );
+      const data: any = await fetch(`${BASE_URL}/project/url?url=${url}`, {
+        method: "GET",
+      });
       const response = await data.json();
       const spec = response.responseObject.projectData;
       const fileName = response.responseObject.projectName;
@@ -117,7 +117,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    const data: any = await fetch("http://localhost:8080/project/create", {
+    const data: any = await fetch(`${BASE_URL}/project/create`, {
       method: "POST",
       body: formData,
     });
