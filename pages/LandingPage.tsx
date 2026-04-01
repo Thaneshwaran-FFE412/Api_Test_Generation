@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { User, SwaggerProject, ApiEndpoint } from "../types";
 import toast from "react-hot-toast";
 
-const BASE_URL = "http://localhost:8080";
+export const BASE_URL = "http://localhost:8080";
 
 interface LandingPageProps {
   addProject: (p: SwaggerProject) => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState("https://petstore.swagger.io/v2/swagger.json");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();

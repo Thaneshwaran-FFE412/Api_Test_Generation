@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { SavedTestCase, SwaggerProject } from "../types";
+import { BASE_URL } from "@/pages/LandingPage";
 
 interface TestCasesPanelProps {
-  testCases: SavedTestCase[];
   onDelete: (ids: string[]) => void;
   onGenerateMTC: (ids: string[]) => Promise<boolean>;
   onSaveModule: (ids: string[], name: string) => void;
@@ -12,7 +12,6 @@ interface TestCasesPanelProps {
 }
 
 const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
-  testCases,
   onDelete,
   onGenerateMTC,
   onSaveModule,
@@ -21,7 +20,25 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   generatedMTCData,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [testCases, setTestCases] = useState<any[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const getSavedScenarios = async () => {
+    const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
+      method: "GET",
+    });
+    const response = await data.json();
+
+    if (response.responseCode === 200) {
+      setTestCases(response.responseObject);
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
+
+  useEffect(() => {
+    getSavedScenarios();
+  }, []);
 
   // Group Test Cases by Endpoint Tags
   const groupedCases = useMemo(() => {

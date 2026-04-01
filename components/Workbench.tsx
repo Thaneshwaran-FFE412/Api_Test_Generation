@@ -25,7 +25,6 @@ interface WorkbenchProps {
   savedTestCases: SavedTestCase[];
   setGlobalAuth: any;
   onVariablesChange: (newVars: Record<string, string>) => void;
-  onSave: (tc: SavedTestCase) => void;
 }
 
 const substituteVariables = (
@@ -61,7 +60,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
   savedTestCases,
   setGlobalAuth,
   onVariablesChange,
-  onSave,
 }) => {
   const [requestName, setRequestName] = useState(
     endpoint.summary || endpoint.path,
@@ -1157,25 +1155,18 @@ const Workbench: React.FC<WorkbenchProps> = ({
     setIsSaveModalOpen(true);
   };
 
-  const confirmSave = () => {
-    let nextIdNum = 1;
-    if (savedTestCases.length > 0) {
-      const ids = savedTestCases
-        .map((tc) => {
-          const match = tc.id.match(/^REQ_(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        })
-        .filter((n) => !isNaN(n));
-      if (ids.length > 0) {
-        nextIdNum = Math.max(...ids) + 1;
-      }
-    }
-    const newId = `REQ_${String(nextIdNum).padStart(3, "0")}`;
+  const saveEndpoint = async (payload) => {
+    const data: any = await fetch(`${BASE_URL}/endpoint/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  };
 
-    onSave({
-      id: newId,
-      name: saveName || requestName,
-      endpointId: endpoint.id,
+  const confirmSave = () => {
+    const endpointData = {
       method,
       url: tempUrl,
       preRequest,
@@ -1193,10 +1184,16 @@ const Workbench: React.FC<WorkbenchProps> = ({
       captures: postResponse,
       postResponseScript,
       setting,
-      dependentOn: dependentOnId || undefined,
       auth: globalAuth,
-      createdAt: Date.now(),
-    });
+    };
+
+    const payload = {
+      testCaseData: endpointData,
+      dependentId: [dependentOnId],
+      endpointName: saveName || requestName,
+      controller: endpoint.tags[0] || "General",
+    };
+    saveEndpoint(payload);
     setIsSaveModalOpen(false);
     toast.success("Request saved successfully");
   };

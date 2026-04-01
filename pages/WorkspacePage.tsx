@@ -127,13 +127,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     setActiveTab("workbench");
   };
 
-  const handleSaveTestCase = (testCase: SavedTestCase) => {
-    const updatedProject = {
-      ...project,
-      savedTestCases: [...project.savedTestCases, testCase],
-    };
-  };
-
   const handleUpdateVariables = (newVars: Record<string, string>) => {
     setVariables((prev) => ({ ...prev, ...newVars }));
   };
@@ -147,7 +140,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     };
   };
 
-  const handleSaveModule = (ids: string[], name: string) => {
+  const handleSaveExecution = (ids: string[], name: string) => {
     const mtcDataForModule: Record<string, { rows: any[]; rawRows: any[] }> =
       {};
 
@@ -743,10 +736,9 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "saved" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
           >
             <TestCasesPanel
-              testCases={project.savedTestCases}
               onDelete={handleDeleteTestCases}
               onGenerateMTC={handleGenerateMTC}
-              onSaveModule={handleSaveModule}
+              onSaveModule={handleSaveExecution}
               isGeneratingMTC={isGeneratingMTC}
               project={project}
               generatedMTCData={generatedMTCData}
@@ -767,7 +759,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
                 savedTestCases={project.savedTestCases}
                 setGlobalAuth={setGlobalAuth}
                 onVariablesChange={handleUpdateVariables}
-                onSave={handleSaveTestCase}
               />
             ) : (
               <div className="h-full flex items-center justify-center theme-text-secondary">
