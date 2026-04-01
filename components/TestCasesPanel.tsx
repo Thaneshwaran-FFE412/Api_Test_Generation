@@ -40,13 +40,13 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     getSavedScenarios();
   }, []);
 
-  // Group Test Cases by Endpoint Tags
   const groupedCases = useMemo(() => {
     const groups: Record<string, SavedTestCase[]> = {};
 
     testCases.forEach((tc) => {
-      // Find original endpoint to get tags
-      const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
+      const endpoint = project.endpoints.find(
+        (e) => e.tags[0] === tc.controller,
+      );
       const groupName =
         endpoint?.tags && endpoint.tags.length > 0
           ? endpoint.tags[0]
@@ -55,13 +55,10 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
       if (!groups[groupName]) groups[groupName] = [];
       groups[groupName].push(tc);
     });
-
     return groups;
   }, [testCases, project.endpoints]);
 
   const groupKeys = Object.keys(groupedCases).sort();
-
-  // --- Selection Logic ---
 
   const toggleSelectAll = () => {
     if (selectedIds.size === testCases.length) {
@@ -330,28 +327,25 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                 checked={selectedIds.has(tc.id)}
                                 onChange={() => toggleItemSelection(tc.id)}
                               />
-                              <div className="text-[10px] font-mono theme-text-secondary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border">
-                                {tc.id}
-                              </div>
                               <div
-                                className={`text-[8px] font-black px-1 py-0.5 rounded border uppercase w-10 text-center ${getMethodColor(tc.method)}`}
+                                className={`text-[8px] font-black px-1 py-0.5 rounded border uppercase w-10 text-center ${getMethodColor(tc.testCaseData.method)}`}
                               >
-                                {tc.method}
+                                {tc.testCaseData.method}
                               </div>
                               <span
                                 className="text-xs theme-text-primary truncate flex-1 font-bold"
-                                title={tc.name}
+                                title={tc.endpointName}
                               >
-                                {tc.name}
+                                {tc.endpointName}
                               </span>
                             </div>
-                            {tc.dependentOn && (
+                            {tc?.DependentId?.length > 0 && (
                               <div className="ml-8 mt-2 pl-3 border-l theme-border flex flex-col gap-1">
                                 <span className="text-[9px] font-black theme-text-secondary uppercase tracking-widest">
                                   Pre-conditions:
                                 </span>
                                 <div className="text-[10px] font-mono theme-text-primary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border w-fit">
-                                  {tc.dependentOn}
+                                  {tc.DependentId.join(", ")}
                                 </div>
                               </div>
                             )}

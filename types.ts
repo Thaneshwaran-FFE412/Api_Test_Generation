@@ -99,9 +99,14 @@ export interface AppSettings {
 }
 
 export interface SavedTestCase {
+  DependentId: String[] | [];
+  endpointName: string;
   id: string;
-  name: string;
-  endpointId: string;
+  projectId: string;
+  testCaseData: TestCaseType;
+}
+
+export interface TestCaseType {
   method: string;
   url: string;
   queryParams: KVItem[];
@@ -120,8 +125,6 @@ export interface SavedTestCase {
   postResponseScript?: string;
   auth: GlobalAuth;
   setting: AppSettings;
-  dependentOn?: string;
-  createdAt: number;
 }
 
 export interface ExecutionResult {
