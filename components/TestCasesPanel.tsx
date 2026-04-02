@@ -85,12 +85,8 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   // --- Actions ---
 
   const handleMTC = async () => {
-    if (selectedIds.size === 0) return;
-    const success = await onGenerateMTC(Array.from(selectedIds));
-    if (success) {
-      setModuleName("");
-      setIsSaveModalOpen(true);
-    }
+    setModuleName("");
+    setIsSaveModalOpen(true);
   };
   const deleteEndpoint = async (payload) => {
     const data: any = await fetch(`${BASE_URL}/endpoint/delete`, {
@@ -197,9 +193,11 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     setIsSaveModalOpen(true);
   };
 
-  const confirmSaveModule = () => {
+  const confirmSaveModule = async () => {
     if (!moduleName.trim()) return;
-    onSaveModule(Array.from(selectedIds), moduleName.trim());
+    if (selectedIds.size === 0) return;
+    const mtcData = await onGenerateMTC(Array.from(selectedIds));
+    toast.success("Module saved successfully!");
     setIsSaveModalOpen(false);
   };
 

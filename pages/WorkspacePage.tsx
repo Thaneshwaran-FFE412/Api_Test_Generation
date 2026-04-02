@@ -613,8 +613,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         }
       }
       const newGeneratedMTCData = { ...generatedMTCData };
-      // await getAllEndpoint();
-
       for (const tc of testCasesToProcess) {
         console.log("project.endpoints");
         console.log(project.endpoints);
@@ -630,11 +628,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           hasData = true;
         }
       }
-      console.log("result Is Fetch Success");
-      console.log(newGeneratedMTCData);
       if (hasData) {
         setGeneratedMTCData(newGeneratedMTCData);
-        toast.success("MTC generated successfully");
         return true;
       } else {
         toast.error("No Test Cases were generated. Please try again.");
