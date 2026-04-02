@@ -1168,6 +1168,9 @@ const Workbench: React.FC<WorkbenchProps> = ({
       },
       body: JSON.stringify(payload),
     });
+    if (data.status === 200) {
+      getSavedScenarios();
+    }
   };
 
   const confirmSave = () => {
@@ -1210,7 +1213,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
     };
     saveEndpoint(payload);
     setIsSaveModalOpen(false);
-    getSavedScenarios();
     toast.success("Request saved successfully");
   };
 
