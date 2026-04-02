@@ -2332,9 +2332,9 @@ const Workbench: React.FC<WorkbenchProps> = ({
       )}
       {isSaveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="theme-bg-surface border theme-border rounded-xl shadow-2xl w-[500px] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b theme-border theme-bg-workbench/50">
-              <h3 className="text-sm font-black text-white tracking-widest uppercase">
+          <div className="mt-20 theme-bg-surface border theme-border rounded-xl shadow-2xl w-[500px] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-2 border-b theme-border theme-bg-workbench/50">
+              <h3 className="text-sm font-black text-black tracking-widest uppercase">
                 Save Request
               </h3>
               <button
@@ -2344,8 +2344,8 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
+            <div className="px-6 py-2 space-y-4">
+              <div className="space-y-1">
                 <label className="text-[10px] font-black theme-text-secondary uppercase tracking-widest">
                   Request Name
                 </label>
@@ -2384,7 +2384,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                             }
                           />
                           <div className="text-[10px] font-mono theme-text-secondary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border">
-                            {tc.id}
+                            {tc.testCaseData.method}
                           </div>
                           <span className="text-xs theme-text-primary truncate flex-1 font-medium">
                             {tc.endpointName}
@@ -2400,7 +2400,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/30">
+            <div className="px-6 py-2 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/30">
               <button
                 onClick={() => setIsSaveModalOpen(false)}
                 className="px-5 py-2 text-xs font-bold theme-text-secondary hover:text-white transition-colors"

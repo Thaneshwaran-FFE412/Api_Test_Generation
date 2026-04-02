@@ -162,14 +162,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     setVariables((prev) => ({ ...prev, ...newVars }));
   };
 
-  const handleDeleteTestCases = (ids: string[]) => {
-    const updatedProject = {
-      ...project,
-      savedTestCases: project.savedTestCases.filter(
-        (tc) => !ids.includes(tc.id),
-      ),
-    };
-  };
+  const handleDeleteTestCases = (ids: string[]) => {};
 
   const handleSaveExecution = (name) => {
     console.log(name);
@@ -769,7 +762,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
                 variables={variables}
                 globalAuth={globalAuth}
                 spec={project.spec}
-                savedTestCases={project.savedTestCases}
+                savedTestCases={testCases}
                 setGlobalAuth={setGlobalAuth}
                 onVariablesChange={handleUpdateVariables}
                 getSavedScenarios={getSavedScenarios}
