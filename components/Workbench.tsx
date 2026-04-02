@@ -1171,6 +1171,15 @@ const Workbench: React.FC<WorkbenchProps> = ({
   };
 
   const confirmSave = () => {
+    const isDuplicate = savedTestCases.some(
+      (tc) =>
+        tc.endpointName.toLowerCase().trim() === saveName.toLowerCase().trim(),
+    );
+    if (isDuplicate) {
+      toast.error("Endpoint name already exists. Please use a different name.");
+      return;
+    }
+
     const endpointData = {
       method,
       url: tempUrl,
@@ -1195,7 +1204,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     const payload = {
       apiId: endpoint.id,
       testCaseData: endpointData,
-      dependentId: [dependentOnId],
+      dependentId: dependentOnId !== "" ? [dependentOnId] : [],
       endpointName: saveName || requestName,
       controller: endpoint.tags[0] || "General",
     };

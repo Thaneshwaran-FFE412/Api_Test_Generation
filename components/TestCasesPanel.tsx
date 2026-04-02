@@ -328,7 +328,12 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                   Pre-conditions:
                                 </span>
                                 <div className="text-[10px] font-mono theme-text-primary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border w-fit">
-                                  {tc.dependentId.join(", ")}
+                                  {tc.dependentId.map((depId) => {
+                                    const dep = testCases.find(
+                                      (t) => t.id === depId,
+                                    );
+                                    return dep?.endpointName ?? "";
+                                  })}
                                 </div>
                               </div>
                             )}
