@@ -25,7 +25,7 @@ interface WorkbenchProps {
   savedTestCases: SavedTestCase[];
   setGlobalAuth: any;
   onVariablesChange: (newVars: Record<string, string>) => void;
-  getSavedScenarios: () => Promise<void>;
+  getEndpointList: () => Promise<void>;
 }
 
 const substituteVariables = (
@@ -61,7 +61,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
   savedTestCases,
   setGlobalAuth,
   onVariablesChange,
-  getSavedScenarios,
+  getEndpointList,
 }) => {
   console.log("endpoint Is Captured");
   console.log(endpoint);
@@ -1168,8 +1168,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
       },
       body: JSON.stringify(payload),
     });
-    if (data.status === 200) {
-      getSavedScenarios();
+    const response = await data.json();
+    if (response.responseCode === 200) {
+      getEndpointList();
+      toast.success(response.responseMessage);
     }
   };
 

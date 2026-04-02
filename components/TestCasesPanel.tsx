@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { SavedTestCase, SwaggerProject } from "../types";
 import { BASE_URL } from "@/pages/LandingPage";
+import toast from "react-hot-toast";
 
 interface TestCasesPanelProps {
   testCases: SavedTestCase[];
-  onDelete: (ids: string[]) => void;
+  getEndpointList: () => void;
   onGenerateMTC: (ids: string[]) => Promise<boolean>;
   onSaveModule: (ids: string[], name: string) => void;
   isGeneratingMTC: boolean;
@@ -14,7 +15,7 @@ interface TestCasesPanelProps {
 
 const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   testCases,
-  onDelete,
+  getEndpointList,
   onGenerateMTC,
   onSaveModule,
   isGeneratingMTC,
@@ -91,12 +92,34 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
       setIsSaveModalOpen(true);
     }
   };
+  const deleteEndpoint = async (payload) => {
+    const data: any = await fetch(`${BASE_URL}/endpoint/delete`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const response = await data.json();
+    if (response.responseCode === 200) {
+      toast.success(response.responseMessage || "Deleted successfully");
+      getEndpointList();
+    } else {
+      toast.error(response.message);
+    }
+  };
 
   const handleDelete = () => {
     if (selectedIds.size === 0) return;
-    if (confirm(`Delete ${selectedIds.size} scenarios?`)) {
-      onDelete(Array.from(selectedIds));
-      setSelectedIds(new Set());
+    const deleteId = [];
+    selectedIds.forEach((id) => {
+      const tc = testCases.find((t) => t.id === id);
+      if (tc) {
+        deleteId.push(tc.id);
+      }
+    });
+    if (deleteId.length > 0) {
+      deleteEndpoint(deleteId);
     }
   };
 

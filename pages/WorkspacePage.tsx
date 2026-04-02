@@ -78,10 +78,10 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   }, [project, selectedEndpoint]);
 
   useEffect(() => {
-    getSavedScenarios();
+    getEndpointList();
   }, []);
 
-  const getSavedScenarios = async () => {
+  const getEndpointList = async () => {
     const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
       method: "GET",
     });
@@ -685,7 +685,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             <button
               onClick={() => {
                 setActiveTab("saved");
-                getSavedScenarios();
+                getEndpointList();
               }}
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === "saved"
@@ -741,10 +741,10 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             {testCases && (
               <TestCasesPanel
                 testCases={testCases}
-                onDelete={handleDeleteTestCases}
                 onGenerateMTC={handleGenerateMTC}
                 onSaveModule={handleSaveExecution}
                 isGeneratingMTC={isGeneratingMTC}
+                getEndpointList={getEndpointList}
                 project={project}
                 generatedMTCData={generatedMTCData}
               />
@@ -765,7 +765,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
                 savedTestCases={testCases}
                 setGlobalAuth={setGlobalAuth}
                 onVariablesChange={handleUpdateVariables}
-                getSavedScenarios={getSavedScenarios}
+                getEndpointList={getEndpointList}
               />
             ) : (
               <div className="h-full flex items-center justify-center theme-text-secondary">
