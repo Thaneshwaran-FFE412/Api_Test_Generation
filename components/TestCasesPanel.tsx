@@ -3,6 +3,7 @@ import { SavedTestCase, SwaggerProject } from "../types";
 import { BASE_URL } from "@/pages/LandingPage";
 
 interface TestCasesPanelProps {
+  testCases: SavedTestCase[];
   onDelete: (ids: string[]) => void;
   onGenerateMTC: (ids: string[]) => Promise<boolean>;
   onSaveModule: (ids: string[], name: string) => void;
@@ -12,6 +13,7 @@ interface TestCasesPanelProps {
 }
 
 const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
+  testCases,
   onDelete,
   onGenerateMTC,
   onSaveModule,
@@ -20,26 +22,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   generatedMTCData,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [testCases, setTestCases] = useState<any[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  const getSavedScenarios = async () => {
-    const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
-      method: "GET",
-    });
-    const response = await data.json();
-
-    if (response.responseCode === 200) {
-      setTestCases(response.responseObject);
-    } else {
-      console.error("Failed to fetch saved scenarios");
-    }
-  };
-
-  useEffect(() => {
-    getSavedScenarios();
-  }, []);
-
   const groupedCases = useMemo(() => {
     const groups: Record<string, SavedTestCase[]> = {};
 
@@ -124,15 +107,15 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     const paths: any = {};
 
     selectedCases.forEach((tc) => {
-      const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
+      const endpoint = project.endpoints.find((e) => e.id === tc.id);
       if (!endpoint) return;
 
       if (!paths[endpoint.path]) {
         paths[endpoint.path] = {};
       }
 
-      paths[endpoint.path][tc.method.toLowerCase()] = {
-        summary: tc.name,
+      paths[endpoint.path][tc.testCaseData.method.toLowerCase()] = {
+        summary: tc.endpointName,
         description: `Exported from ${project.name}`,
         parameters: endpoint.parameters,
         requestBody: endpoint.requestBody,
@@ -339,13 +322,13 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                 {tc.endpointName}
                               </span>
                             </div>
-                            {tc?.DependentId?.length > 0 && (
+                            {tc?.dependentId?.length > 0 && (
                               <div className="ml-8 mt-2 pl-3 border-l theme-border flex flex-col gap-1">
                                 <span className="text-[9px] font-black theme-text-secondary uppercase tracking-widest">
                                   Pre-conditions:
                                 </span>
                                 <div className="text-[10px] font-mono theme-text-primary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border w-fit">
-                                  {tc.DependentId.join(", ")}
+                                  {tc.dependentId.join(", ")}
                                 </div>
                               </div>
                             )}

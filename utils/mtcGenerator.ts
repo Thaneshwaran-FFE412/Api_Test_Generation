@@ -178,10 +178,14 @@ const getFreshPayload = (
   tc: SavedTestCase,
   overrides: Record<string, any> = {},
   excludeKeys: string[] = [],
-) => {
-  if (tc.bodyType === "raw" && tc.rawFormat === "json" && tc.jsonFields) {
+): string | Record<string, any> => {
+  if (
+    tc.testCaseData.bodyType === "raw" &&
+    tc.testCaseData.rawFormat === "json" &&
+    tc.testCaseData.jsonFields
+  ) {
     const freshOverrides: Record<string, any> = { ...overrides };
-    tc.jsonFields.forEach((f) => {
+    tc.testCaseData.jsonFields.forEach((f) => {
       if (
         f.enabled &&
         f.mode === "dynamic" &&
@@ -197,16 +201,16 @@ const getFreshPayload = (
       }
     });
     return buildJsonPayload(
-      tc.body,
-      tc.jsonFields,
+      tc.testCaseData.body,
+      tc.testCaseData.jsonFields,
       freshOverrides,
       excludeKeys,
     );
   }
 
-  if (tc.bodyType === "form-data" && tc.formData) {
+  if (tc.testCaseData.bodyType === "form-data" && tc.testCaseData.formData) {
     const result: Record<string, any> = {};
-    tc.formData.forEach((f) => {
+    tc.testCaseData.formData.forEach((f) => {
       if (f.enabled && !excludeKeys.includes(f.key)) {
         if (overrides.hasOwnProperty(f.key)) {
           result[f.key] = overrides[f.key];
@@ -222,12 +226,15 @@ const getFreshPayload = (
         }
       }
     });
-    return result;
+    return result; // Getting Type Issue
   }
 
-  if (tc.bodyType === "x-www-form-urlencoded" && tc.urlEncoded) {
+  if (
+    tc.testCaseData.bodyType === "x-www-form-urlencoded" &&
+    tc.testCaseData.urlEncoded
+  ) {
     const result: Record<string, any> = {};
-    tc.urlEncoded.forEach((f) => {
+    tc.testCaseData.urlEncoded.forEach((f) => {
       if (f.enabled && !excludeKeys.includes(f.key)) {
         if (overrides.hasOwnProperty(f.key)) {
           result[f.key] = overrides[f.key];
@@ -243,10 +250,10 @@ const getFreshPayload = (
         }
       }
     });
-    return result;
+    return result; // Getting Type Issue
   }
 
-  return tc.bodyType === "raw" ? tc.body : "";
+  return tc.testCaseData.bodyType === "raw" ? tc.testCaseData.body : "";
 };
 
 const getAuthString = (auth: any, isFresh: boolean) => {
@@ -383,38 +390,38 @@ export const generateMTCData = (
   const rawRows: any[] = [];
   let slNo = slNoStart;
 
-  const reqName = tc.name;
+  const reqName = tc.endpointName;
   const endPoint = endpoint.path;
-  const method = tc.method.toUpperCase();
+  const method = tc.testCaseData.method.toUpperCase();
 
   // Find expected success status code
   let expectedStatus = method === "POST" ? "201" : "200";
 
   // If user has defined a status code assertion, use that instead
-  const statusCodeAssertion = tc.assertions?.find(
+  const statusCodeAssertion = tc.testCaseData.assertions?.find(
     (a) => a.type === "status_code",
   );
   if (statusCodeAssertion && statusCodeAssertion.expected) {
     expectedStatus = statusCodeAssertion.expected;
   }
 
-  const basePath = getFreshParams(tc.pathParams);
-  const baseQuery = getFreshParams(tc.queryParams);
-  const baseHeader = getFreshParams(tc.headers);
+  const basePath = getFreshParams(tc.testCaseData.pathParams);
+  const baseQuery = getFreshParams(tc.testCaseData.queryParams);
+  const baseHeader = getFreshParams(tc.testCaseData.headers);
   const basePayload = getFreshPayload(tc);
-  const baseAuth = getAuthString(tc.auth, true);
+  const baseAuth = getAuthString(tc.testCaseData.auth, true);
 
   let authTypeStr = "Authorization";
-  if (tc.auth?.type && tc.auth.type !== "none") {
-    authTypeStr = `Authorization (${tc.auth.type})`;
+  if (tc.testCaseData.auth?.type && tc.testCaseData.auth.type !== "none") {
+    authTypeStr = `Authorization (${tc.testCaseData.auth.type})`;
   }
 
   let payloadTypeStr = "Request Payload";
-  if (tc.bodyType !== "none") {
-    if (tc.bodyType === "raw") {
-      payloadTypeStr = `Request Payload (${tc.rawFormat})`;
+  if (tc.testCaseData.bodyType !== "none") {
+    if (tc.testCaseData.bodyType === "raw") {
+      payloadTypeStr = `Request Payload (${tc.testCaseData.rawFormat})`;
     } else {
-      payloadTypeStr = `Request Payload (${tc.bodyType})`;
+      payloadTypeStr = `Request Payload (${tc.testCaseData.bodyType})`;
     }
   }
 
@@ -426,7 +433,7 @@ export const generateMTCData = (
     queryParams: Record<string, any>,
     headerParams: Record<string, any>,
     auth: string,
-    payload: string,
+    payload: string | Record<string, any>,
     expected: string,
   ) => {
     let resolvedEndPoint = endPoint;
@@ -484,8 +491,8 @@ export const generateMTCData = (
       auth: subAuth,
       payload: subPayload,
       expected,
-      postResponseScript: tc.postResponseScript,
-      postResponse: tc.captures,
+      postResponseScript: tc.testCaseData.postResponseScript,
+      postResponse: tc.testCaseData.captures,
     });
   };
 
@@ -518,10 +525,10 @@ export const generateMTCData = (
         "HTTP Method Test",
         "Wrong HTTP Method",
         m,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "405",
       );
@@ -529,7 +536,7 @@ export const generateMTCData = (
   });
 
   // 3. Path Params
-  tc.pathParams?.forEach((p) => {
+  tc.testCaseData.pathParams?.forEach((p) => {
     if (!p.enabled) return;
     const set = `Path Param Test(${p.key})(${p.mode === "dynamic" ? "Dynamic" : "Static"})`;
     const c = parseConstraint(p.constraint);
@@ -539,26 +546,26 @@ export const generateMTCData = (
         set,
         "Path Param Happy",
         method,
-        getFreshParams(tc.pathParams, {
+        getFreshParams(tc.testCaseData.pathParams, {
           [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyPath = getFreshParams(tc.pathParams);
+      const emptyPath = getFreshParams(tc.testCaseData.pathParams);
       delete emptyPath[p.key];
       addRow(
         set,
         "Path Param Empty",
         method,
         emptyPath,
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "400/404",
       );
@@ -567,12 +574,12 @@ export const generateMTCData = (
         set,
         "Path Param Wrong",
         method,
-        getFreshParams(tc.pathParams, {
+        getFreshParams(tc.testCaseData.pathParams, {
           [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "400",
       );
@@ -581,24 +588,24 @@ export const generateMTCData = (
         set,
         "Path Param Happy",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyPath = getFreshParams(tc.pathParams);
+      const emptyPath = getFreshParams(tc.testCaseData.pathParams);
       delete emptyPath[p.key];
       addRow(
         set,
         "Path Param Empty",
         method,
         emptyPath,
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "400/404",
       );
@@ -606,7 +613,7 @@ export const generateMTCData = (
   });
 
   // 4. Query Params
-  tc.queryParams?.forEach((p) => {
+  tc.testCaseData.queryParams?.forEach((p) => {
     if (!p.enabled) return;
     const set = `Query Param Test(${p.key})(${p.mode === "dynamic" ? "Dynamic" : "Static"})`;
     const c = parseConstraint(p.constraint);
@@ -616,26 +623,26 @@ export const generateMTCData = (
         set,
         "Query Param Happy",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams, {
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams, {
           [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyQuery = getFreshParams(tc.queryParams);
+      const emptyQuery = getFreshParams(tc.testCaseData.queryParams);
       delete emptyQuery[p.key];
       addRow(
         set,
         "Query Param Empty",
         method,
-        getFreshParams(tc.pathParams),
+        getFreshParams(tc.testCaseData.pathParams),
         emptyQuery,
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         c.required ? "400" : expectedStatus,
       );
@@ -644,12 +651,12 @@ export const generateMTCData = (
         set,
         "Query Param Wrong",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams, {
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams, {
           [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "400",
       );
@@ -658,24 +665,24 @@ export const generateMTCData = (
         set,
         "Query Param Happy",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyQuery = getFreshParams(tc.queryParams);
+      const emptyQuery = getFreshParams(tc.testCaseData.queryParams);
       delete emptyQuery[p.key];
       addRow(
         set,
         "Query Param Empty",
         method,
-        getFreshParams(tc.pathParams),
+        getFreshParams(tc.testCaseData.pathParams),
         emptyQuery,
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         c.required ? "400" : expectedStatus,
       );
@@ -683,7 +690,7 @@ export const generateMTCData = (
   });
 
   // 5. Header Params
-  tc.headers?.forEach((p) => {
+  tc.testCaseData.headers?.forEach((p) => {
     if (!p.enabled) return;
     const set = `Header Param Test(${p.key})(${p.mode === "dynamic" ? "Dynamic" : "Static"})`;
     const c = parseConstraint(p.constraint);
@@ -693,26 +700,26 @@ export const generateMTCData = (
         set,
         "Header Param Happy",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers, {
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers, {
           [p.key]: generateValidData(c, p.value, p.dataType, p.options),
         }),
-        getAuthString(tc.auth, true),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyHeader = getFreshParams(tc.headers);
+      const emptyHeader = getFreshParams(tc.testCaseData.headers);
       delete emptyHeader[p.key];
       addRow(
         set,
         "Header Param Empty",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
         emptyHeader,
-        getAuthString(tc.auth, true),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         c.required ? "400" : expectedStatus,
       );
@@ -721,12 +728,12 @@ export const generateMTCData = (
         set,
         "Header Param Wrong",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers, {
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers, {
           [p.key]: generateInvalidData(c, p.value, p.dataType, p.options),
         }),
-        getAuthString(tc.auth, true),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         "400",
       );
@@ -735,24 +742,24 @@ export const generateMTCData = (
         set,
         "Header Param Happy",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
-        getFreshParams(tc.headers),
-        getAuthString(tc.auth, true),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
+        getFreshParams(tc.testCaseData.headers),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         expectedStatus,
       );
 
-      const emptyHeader = getFreshParams(tc.headers);
+      const emptyHeader = getFreshParams(tc.testCaseData.headers);
       delete emptyHeader[p.key];
       addRow(
         set,
         "Header Param Empty",
         method,
-        getFreshParams(tc.pathParams),
-        getFreshParams(tc.queryParams),
+        getFreshParams(tc.testCaseData.pathParams),
+        getFreshParams(tc.testCaseData.queryParams),
         emptyHeader,
-        getAuthString(tc.auth, true),
+        getAuthString(tc.testCaseData.auth, true),
         getFreshPayload(tc),
         c.required ? "400" : expectedStatus,
       );
@@ -760,8 +767,12 @@ export const generateMTCData = (
   });
 
   // 6. JSON Body
-  if (tc.bodyType === "raw" && tc.rawFormat === "json" && tc.jsonFields) {
-    tc.jsonFields.forEach((p) => {
+  if (
+    tc.testCaseData.bodyType === "raw" &&
+    tc.testCaseData.rawFormat === "json" &&
+    tc.testCaseData.jsonFields
+  ) {
+    tc.testCaseData.jsonFields.forEach((p) => {
       if (!p.enabled) return;
       const set = `Body Param Test(${p.key})(${p.mode === "dynamic" ? "Dynamic" : "Static"})`;
       const c = parseConstraint(p.constraint);
@@ -774,10 +785,10 @@ export const generateMTCData = (
           set,
           "Body Param Happy",
           method,
-          getFreshParams(tc.pathParams),
-          getFreshParams(tc.queryParams),
-          getFreshParams(tc.headers),
-          getAuthString(tc.auth, true),
+          getFreshParams(tc.testCaseData.pathParams),
+          getFreshParams(tc.testCaseData.queryParams),
+          getFreshParams(tc.testCaseData.headers),
+          getAuthString(tc.testCaseData.auth, true),
           happyPayload,
           expectedStatus,
         );
@@ -787,10 +798,10 @@ export const generateMTCData = (
           set,
           "Body Param Empty",
           method,
-          getFreshParams(tc.pathParams),
-          getFreshParams(tc.queryParams),
-          getFreshParams(tc.headers),
-          getAuthString(tc.auth, true),
+          getFreshParams(tc.testCaseData.pathParams),
+          getFreshParams(tc.testCaseData.queryParams),
+          getFreshParams(tc.testCaseData.headers),
+          getAuthString(tc.testCaseData.auth, true),
           emptyPayload,
           c.required ? "400" : expectedStatus,
         );
@@ -802,10 +813,10 @@ export const generateMTCData = (
           set,
           "Body Param Wrong",
           method,
-          getFreshParams(tc.pathParams),
-          getFreshParams(tc.queryParams),
-          getFreshParams(tc.headers),
-          getAuthString(tc.auth, true),
+          getFreshParams(tc.testCaseData.pathParams),
+          getFreshParams(tc.testCaseData.queryParams),
+          getFreshParams(tc.testCaseData.headers),
+          getAuthString(tc.testCaseData.auth, true),
           wrongPayload,
           "400",
         );
@@ -814,10 +825,10 @@ export const generateMTCData = (
           set,
           "Body Param Happy",
           method,
-          getFreshParams(tc.pathParams),
-          getFreshParams(tc.queryParams),
-          getFreshParams(tc.headers),
-          getAuthString(tc.auth, true),
+          getFreshParams(tc.testCaseData.pathParams),
+          getFreshParams(tc.testCaseData.queryParams),
+          getFreshParams(tc.testCaseData.headers),
+          getAuthString(tc.testCaseData.auth, true),
           getFreshPayload(tc),
           expectedStatus,
         );
@@ -827,16 +838,16 @@ export const generateMTCData = (
           set,
           "Body Param Empty",
           method,
-          getFreshParams(tc.pathParams),
-          getFreshParams(tc.queryParams),
-          getFreshParams(tc.headers),
-          getAuthString(tc.auth, true),
+          getFreshParams(tc.testCaseData.pathParams),
+          getFreshParams(tc.testCaseData.queryParams),
+          getFreshParams(tc.testCaseData.headers),
+          getAuthString(tc.testCaseData.auth, true),
           emptyPayload,
           c.required ? "400" : expectedStatus,
         );
       }
     });
   }
-
+  
   return { rows: allRows, rawRows, nextSlNo: slNo };
 };

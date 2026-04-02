@@ -99,7 +99,9 @@ export interface AppSettings {
 }
 
 export interface SavedTestCase {
-  DependentId: String[] | [];
+  apiId: string;
+  controller: string;
+  dependentId: string[] | [];
   endpointName: string;
   id: string;
   projectId: string;

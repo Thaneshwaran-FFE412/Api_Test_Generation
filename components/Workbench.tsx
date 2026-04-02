@@ -25,6 +25,7 @@ interface WorkbenchProps {
   savedTestCases: SavedTestCase[];
   setGlobalAuth: any;
   onVariablesChange: (newVars: Record<string, string>) => void;
+  getSavedScenarios: () => Promise<void>;
 }
 
 const substituteVariables = (
@@ -60,7 +61,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
   savedTestCases,
   setGlobalAuth,
   onVariablesChange,
+  getSavedScenarios,
 }) => {
+  console.log("endpoint Is Captured");
+  console.log(endpoint);
+
   const [requestName, setRequestName] = useState(
     endpoint.summary || endpoint.path,
   );
@@ -1188,6 +1193,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     };
 
     const payload = {
+      apiId: endpoint.id,
       testCaseData: endpointData,
       dependentId: [dependentOnId],
       endpointName: saveName || requestName,
@@ -1195,6 +1201,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     };
     saveEndpoint(payload);
     setIsSaveModalOpen(false);
+    getSavedScenarios();
     toast.success("Request saved successfully");
   };
 
@@ -2380,7 +2387,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                             {tc.id}
                           </div>
                           <span className="text-xs theme-text-primary truncate flex-1 font-medium">
-                            {tc.name}
+                            {tc.endpointName}
                           </span>
                         </label>
                       ))}

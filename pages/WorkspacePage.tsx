@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { toast } from "react-hot-toast";
 import {
   SwaggerProject,
@@ -20,6 +20,7 @@ import {
 import { generateMTCData, substituteVariables } from "../utils/mtcGenerator";
 import { formatAndAppendSheet } from "../utils/excelFormatter";
 import * as XLSX from "xlsx-js-style";
+import { BASE_URL } from "./LandingPage";
 
 interface WorkspacePageProps {
   project: SwaggerProject;
@@ -32,7 +33,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     null,
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
-
+  const [testCases, setTestCases] = useState<SavedTestCase[] | null>(null);
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(`apipro_vars_${project.id}`);
     return saved ? JSON.parse(saved) : {};
@@ -75,6 +76,36 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       setSelectedEndpoint(project.endpoints[0]);
     }
   }, [project, selectedEndpoint]);
+
+  useEffect(() => {
+    getSavedScenarios();
+  }, []);
+
+  const getSavedScenarios = async () => {
+    const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
+      method: "GET",
+    });
+    const response = await data.json();
+
+    if (response.responseCode === 200) {
+      setTestCases(response.responseObject);
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
+
+  const getAllEndpoint = async () => {
+    const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
+      method: "GET",
+    });
+    const response = await data.json();
+
+    if (response.responseCode === 200) {
+      setTestCases(response.responseObject);
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
 
   useEffect(() => {
     const spec = project.spec;
@@ -140,41 +171,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     };
   };
 
-  const handleSaveExecution = (ids: string[], name: string) => {
-    const mtcDataForModule: Record<string, { rows: any[]; rawRows: any[] }> =
-      {};
-
-    // Helper to get all dependencies
-    const getAllDependencies = (tcId: string, visited = new Set<string>()) => {
-      if (visited.has(tcId)) return;
-      visited.add(tcId);
-      const tc = project.savedTestCases.find((t) => t.id === tcId);
-      if (tc && tc.dependentOn) {
-        getAllDependencies(tc.dependentOn, visited);
-      }
-    };
-
-    const allIdsToSave = new Set<string>(ids);
-    ids.forEach((id) => getAllDependencies(id, allIdsToSave));
-
-    allIdsToSave.forEach((id) => {
-      if (generatedMTCData[id]) {
-        mtcDataForModule[id] = generatedMTCData[id];
-      }
-    });
-
-    const newModule = {
-      id: crypto.randomUUID(),
-      name,
-      testCaseIds: ids,
-      mtcData: mtcDataForModule,
-      createdAt: Date.now(),
-    };
-
-    const updatedProject = {
-      ...project,
-      savedModules: [...(project.savedModules || []), newModule],
-    };
+  const handleSaveExecution = (name) => {
+    console.log(name);
     toast.success("Module saved successfully!");
   };
 
@@ -199,10 +197,12 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       if (visited.has(tcId)) return [];
       visited.add(tcId);
       const tc = project.savedTestCases.find((t) => t.id === tcId);
-      if (tc && tc.dependentOn) {
-        const dep = project.savedTestCases.find((t) => t.id === tc.dependentOn);
+      if (tc && tc.dependentId) {
+        const dep = project.savedTestCases.find(
+          (t) => t.id === tc.dependentId[0],
+        );
         if (dep) {
-          return [...getDependenciesString(dep.id, visited), dep.name];
+          return [...getDependenciesString(dep.id, visited), dep.endpointName];
         }
       }
       return [];
@@ -236,8 +236,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         const visit = (tcId: string) => {
           if (visited.has(tcId)) return;
           const tc = project.savedTestCases.find((t) => t.id === tcId);
-          if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
-            visit(tc.dependentOn);
+          if (tc && tc.dependentId && allTcIds.includes(tc.dependentId[0])) {
+            visit(tc.dependentId[0]);
           }
           visited.add(tcId);
           sortedIds.push(tcId);
@@ -250,9 +250,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           const tc = project.savedTestCases.find((t) => t.id === tcId);
           if (!tc) continue;
 
-          const endpoint = project.endpoints.find(
-            (e) => e.id === tc.endpointId,
-          );
+          const endpoint = project.endpoints.find((e) => e.id === tc.id);
           if (!endpoint) continue;
 
           let sheetRows = autoExcelData[tcId] || [];
@@ -266,7 +264,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
               workbook,
               clonedRows,
               moduleName,
-              tc.name,
+              tc.endpointName,
               depsString,
             );
           }
@@ -307,8 +305,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       const visit = (tcId: string) => {
         if (visited.has(tcId)) return;
         const tc = project.savedTestCases.find((t) => t.id === tcId);
-        if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
-          visit(tc.dependentOn);
+        if (tc && tc.dependentId[0] && allTcIds.includes(tc.dependentId[0])) {
+          visit(tc.dependentId[0]);
         }
         visited.add(tcId);
         sortedIds.push(tcId);
@@ -321,7 +319,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         const tc = project.savedTestCases.find((t) => t.id === tcId);
         if (!tc) continue;
 
-        const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
+        const endpoint = project.endpoints.find((e) => e.id === tc.id);
         if (!endpoint) continue;
 
         const mtcData = mod.mtcData[tcId];
@@ -338,8 +336,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             const t = project.savedTestCases.find((x) => x.id === tId);
             if (!t) return [];
             let plan: string[] = [];
-            if (t.dependentOn) {
-              plan = plan.concat(getExecutionPlan(t.dependentOn, v));
+            if (t.dependentId[0]) {
+              plan = plan.concat(getExecutionPlan(t.dependentId[0], v));
             }
             plan.push(tId);
             return plan;
@@ -377,7 +375,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             workbook,
             interleavedRows,
             moduleName,
-            tc.name,
+            tc.endpointName,
             depsString,
           );
         }
@@ -408,8 +406,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     const visit = (tcId: string) => {
       if (visited.has(tcId)) return;
       const tc = project.savedTestCases.find((t) => t.id === tcId);
-      if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
-        visit(tc.dependentOn);
+      if (tc && tc.dependentId[0] && allTcIds.includes(tc.dependentId[0])) {
+        visit(tc.dependentId[0]);
       }
       visited.add(tcId);
       sortedIds.push(tcId);
@@ -425,7 +423,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       const mtcData = mod.mtcData[tcId];
       if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
         mtcData.rawRows.forEach((rawRow) => {
-          const baseUrl = tc.url.split("/").slice(0, 3).join("/");
+          const baseUrl = tc.testCaseData.url.split("/").slice(0, 3).join("/");
           const queryParams = Object.entries(rawRow.queryParams || {})
             .filter(([_, v]) => v !== undefined && v !== null && v !== "")
             .map(
@@ -445,7 +443,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           }
 
           items.push({
-            name: `${tc.name} - ${rawRow.set} - ${rawRow.summary}`,
+            name: `${tc.endpointName} - ${rawRow.set} - ${rawRow.summary}`,
             request: {
               method: rawRow.httpMethod.toUpperCase(),
               header: headerEntries,
@@ -467,20 +465,20 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         });
       } else {
         items.push({
-          name: tc.name,
+          name: tc.endpointName,
           request: {
-            method: tc.method.toUpperCase(),
-            header: Object.entries(tc.headers)
+            method: tc.testCaseData.method.toUpperCase(),
+            header: Object.entries(tc.testCaseData.headers)
               .filter(([_, v]) => v)
               .map(([k, v]) => ({ key: k, value: v })),
             body: {
               mode: "raw",
-              raw: tc.body,
+              raw: tc.testCaseData.body,
             },
             url: {
-              raw: tc.url,
-              host: [tc.url.split("/")[2]],
-              path: tc.url.split("/").slice(3),
+              raw: tc.testCaseData.url,
+              host: [tc.testCaseData.url.split("/")[2]],
+              path: tc.testCaseData.url.split("/").slice(3),
             },
           },
           response: [],
@@ -525,8 +523,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     const visit = (tcId: string) => {
       if (visited.has(tcId)) return;
       const tc = project.savedTestCases.find((t) => t.id === tcId);
-      if (tc && tc.dependentOn && allTcIds.includes(tc.dependentOn)) {
-        visit(tc.dependentOn);
+      if (tc && tc.dependentId[0] && allTcIds.includes(tc.dependentId[0])) {
+        visit(tc.dependentId[0]);
       }
       visited.add(tcId);
       sortedIds.push(tcId);
@@ -543,11 +541,12 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
         mtcData.rawRows.forEach((rawRow) => {
           fireflinkData.push({
-            "Test Case Name": `${tc.name} - ${rawRow.summary}`,
+            "Test Case Name": `${tc.endpointName} - ${rawRow.summary}`,
             "Module Name": mod.name,
             "HTTP Method": rawRow.httpMethod.toUpperCase(),
             "Endpoint URL":
-              tc.url.split("/").slice(0, 3).join("/") + rawRow.endPoint,
+              tc.testCaseData.url.split("/").slice(0, 3).join("/") +
+              rawRow.endPoint,
             Headers: JSON.stringify(rawRow.headerParams || {}),
             "Query Parameters": JSON.stringify(rawRow.queryParams || {}),
             "Request Body": rawRow.payload || "",
@@ -556,13 +555,13 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         });
       } else {
         fireflinkData.push({
-          "Test Case Name": tc.name,
+          "Test Case Name": tc.endpointName,
           "Module Name": mod.name,
-          "HTTP Method": tc.method.toUpperCase(),
-          "Endpoint URL": tc.url,
-          Headers: JSON.stringify(tc.headers || {}),
+          "HTTP Method": tc.testCaseData.method.toUpperCase(),
+          "Endpoint URL": tc.testCaseData.url,
+          Headers: JSON.stringify(tc.testCaseData.headers || {}),
           "Query Parameters": "",
-          "Request Body": tc.body || "",
+          "Request Body": tc.testCaseData.body || "",
           "Expected Status": "200",
         });
       }
@@ -575,6 +574,9 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   };
 
   const handleGenerateMTC = async (ids: string[]) => {
+    console.log("ids");
+    console.log(ids);
+
     if (ids.length === 0) return false;
 
     setIsGeneratingMTC(true);
@@ -590,9 +592,9 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         visited.add(tc.id);
 
         let plan: SavedTestCase[] = [];
-        if (tc.dependentOn) {
+        if (tc.dependentId[0]) {
           const dep = project.savedTestCases.find(
-            (t) => t.id === tc.dependentOn,
+            (t) => t.id === tc.dependentId[0],
           );
           if (dep) {
             plan = plan.concat(getExecutionPlan(dep, visited));
@@ -606,7 +608,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       const processedIds = new Set<string>();
 
       for (const id of ids) {
-        const tc = project.savedTestCases.find((t) => t.id === id);
+        const tc = testCases.find((t) => t.id === id);
         if (!tc) continue;
 
         const plan = getExecutionPlan(tc);
@@ -618,9 +620,13 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         }
       }
       const newGeneratedMTCData = { ...generatedMTCData };
+      // await getAllEndpoint();
 
       for (const tc of testCasesToProcess) {
-        const endpoint = project.endpoints.find((e) => e.id === tc.endpointId);
+        console.log("project.endpoints");
+        console.log(project.endpoints);
+        console.log(tc);
+        const endpoint = project.endpoints.find((e) => e.id === tc.apiId);
         if (!endpoint) continue;
 
         const result = generateMTCData(tc, endpoint, 1, variables);
@@ -631,7 +637,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           hasData = true;
         }
       }
-
+      console.log("result Is Fetch Success");
+      console.log(newGeneratedMTCData);
       if (hasData) {
         setGeneratedMTCData(newGeneratedMTCData);
         toast.success("MTC generated successfully");
@@ -683,7 +690,10 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         <div className="flex items-center justify-between border-b theme-border theme-bg-main">
           <div className="flex">
             <button
-              onClick={() => setActiveTab("saved")}
+              onClick={() => {
+                setActiveTab("saved");
+                getSavedScenarios();
+              }}
               className={`px-6 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
                 activeTab === "saved"
                   ? "border-indigo-500 theme-accent-text theme-bg-surface"
@@ -735,14 +745,17 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           <div
             className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "saved" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
           >
-            <TestCasesPanel
-              onDelete={handleDeleteTestCases}
-              onGenerateMTC={handleGenerateMTC}
-              onSaveModule={handleSaveExecution}
-              isGeneratingMTC={isGeneratingMTC}
-              project={project}
-              generatedMTCData={generatedMTCData}
-            />
+            {testCases && testCases.length !== 0 && (
+              <TestCasesPanel
+                testCases={testCases}
+                onDelete={handleDeleteTestCases}
+                onGenerateMTC={handleGenerateMTC}
+                onSaveModule={handleSaveExecution}
+                isGeneratingMTC={isGeneratingMTC}
+                project={project}
+                generatedMTCData={generatedMTCData}
+              />
+            )}
           </div>
 
           {/* Workbench Tab */}
@@ -759,6 +772,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
                 savedTestCases={project.savedTestCases}
                 setGlobalAuth={setGlobalAuth}
                 onVariablesChange={handleUpdateVariables}
+                getSavedScenarios={getSavedScenarios}
               />
             ) : (
               <div className="h-full flex items-center justify-center theme-text-secondary">

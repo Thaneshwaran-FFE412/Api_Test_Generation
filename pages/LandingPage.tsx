@@ -86,9 +86,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
         method: "GET",
       });
       const response = await data.json();
-      const spec = response.responseObject.projectData;
-      const fileName = response.responseObject.projectName;
-      payloadProcessor(spec, fileName);
+      addProject(response.responseObject);
+      toast.success("API's Imported successfully");
       navigate(`/workspace/${response.responseObject.id}`);
     } catch (err: any) {
       setError(
@@ -123,8 +122,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
     });
 
     const response = await data.json();
-    const spec = response.responseObject.projectData;
-    payloadProcessor(spec, file.name);
+    addProject(response.responseObject);
+    toast.success("API's Imported successfully");
     navigate(`/workspace/${response.responseObject.id}`);
   };
 
