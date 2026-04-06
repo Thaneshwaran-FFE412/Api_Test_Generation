@@ -88,7 +88,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     setModuleName("");
     setIsSaveModalOpen(true);
   };
-  const deleteEndpoint = async (payload) => {
+  const deleteEndpoint = async (payload: string[]) => {
     const data: any = await fetch(`${BASE_URL}/endpoint/delete`, {
       method: "DELETE",
       headers: {
@@ -107,7 +107,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
 
   const handleDelete = () => {
     if (selectedIds.size === 0) return;
-    const deleteId = [];
+    const deleteId: string[] = [];
     selectedIds.forEach((id) => {
       const tc = testCases.find((t) => t.id === id);
       if (tc) {
@@ -133,7 +133,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
         paths[endpoint.path] = {};
       }
 
-      paths[endpoint.path][tc.testCaseData.method.toLowerCase()] = {
+      paths[endpoint.path][tc.request.method.toLowerCase()] = {
         summary: tc.endpointName,
         description: `Exported from ${project.name}`,
         parameters: endpoint.parameters,
@@ -332,9 +332,9 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                                 onChange={() => toggleItemSelection(tc.id)}
                               />
                               <div
-                                className={`text-[8px] font-black px-1 py-0.5 rounded border uppercase w-10 text-center ${getMethodColor(tc.testCaseData.method)}`}
+                                className={`text-[8px] font-black px-1 py-0.5 rounded border uppercase w-10 text-center ${getMethodColor(tc.request.method)}`}
                               >
-                                {tc.testCaseData.method}
+                                {tc.request.method}
                               </div>
                               <span
                                 className="text-xs theme-text-primary truncate flex-1 font-bold"

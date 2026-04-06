@@ -74,7 +74,7 @@ export interface ApiEndpoint {
   method: string;
   path: string;
   summary: string;
-  tags?: string[];
+  tags: string[];
   parameters?: any[];
   requestBody?: any;
   responses?: any;

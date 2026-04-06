@@ -416,7 +416,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       const mtcData = mod.mtcData[tcId];
       if (mtcData && mtcData.rawRows && mtcData.rawRows.length > 0) {
         mtcData.rawRows.forEach((rawRow) => {
-          const baseUrl = tc.testCaseData.url.split("/").slice(0, 3).join("/");
+          const baseUrl = tc.request.url.split("/").slice(0, 3).join("/");
           const queryParams = Object.entries(rawRow.queryParams || {})
             .filter(([_, v]) => v !== undefined && v !== null && v !== "")
             .map(
@@ -460,18 +460,18 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         items.push({
           name: tc.endpointName,
           request: {
-            method: tc.testCaseData.method.toUpperCase(),
-            header: Object.entries(tc.testCaseData.headers)
+            method: tc.request.method.toUpperCase(),
+            header: Object.entries(tc.request.headers)
               .filter(([_, v]) => v)
               .map(([k, v]) => ({ key: k, value: v })),
             body: {
               mode: "raw",
-              raw: tc.testCaseData.body,
+              raw: tc.request.body,
             },
             url: {
-              raw: tc.testCaseData.url,
-              host: [tc.testCaseData.url.split("/")[2]],
-              path: tc.testCaseData.url.split("/").slice(3),
+              raw: tc.request.url,
+              host: [tc.request.url.split("/")[2]],
+              path: tc.request.url.split("/").slice(3),
             },
           },
           response: [],
@@ -538,7 +538,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             "Module Name": mod.name,
             "HTTP Method": rawRow.httpMethod.toUpperCase(),
             "Endpoint URL":
-              tc.testCaseData.url.split("/").slice(0, 3).join("/") +
+              tc.request.url.split("/").slice(0, 3).join("/") +
               rawRow.endPoint,
             Headers: JSON.stringify(rawRow.headerParams || {}),
             "Query Parameters": JSON.stringify(rawRow.queryParams || {}),
@@ -550,11 +550,11 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         fireflinkData.push({
           "Test Case Name": tc.endpointName,
           "Module Name": mod.name,
-          "HTTP Method": tc.testCaseData.method.toUpperCase(),
-          "Endpoint URL": tc.testCaseData.url,
-          Headers: JSON.stringify(tc.testCaseData.headers || {}),
+          "HTTP Method": tc.request.method.toUpperCase(),
+          "Endpoint URL": tc.request.url,
+          Headers: JSON.stringify(tc.request.headers || {}),
           "Query Parameters": "",
-          "Request Body": tc.testCaseData.body || "",
+          "Request Body": tc.request.body || "",
           "Expected Status": "200",
         });
       }

@@ -2928,7 +2928,8 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
       let options: string[] | undefined = undefined;
       if (current.enum && Array.isArray(current.enum)) {
         options = current.enum.map(String);
-        c.push(`enum:${options.join("|")}`);
+        c.push(`enum:"abc|efg"}`);
+        // c.push(`enum:${options.join("|")}`);
       }
 
       return { constraint: c.join(", "), options };
