@@ -99,13 +99,15 @@ export interface AppSettings {
 }
 
 export interface SavedTestCase {
-  apiId: string;
-  controller: string;
-  dependentId: string[] | [];
-  endpointName: string;
   id: string;
+  apiId: string;
   projectId: string;
-  testCaseData: TestCaseType;
+  endpointName: string;
+  controller: string;
+  dependencyCount: number;
+  dependentId: string[] | [];
+  request: TestCaseType;
+  constraints: ConstraintType;
 }
 
 export interface TestCaseType {
@@ -127,6 +129,13 @@ export interface TestCaseType {
   postResponseScript?: string;
   auth: GlobalAuth;
   setting: AppSettings;
+}
+
+export interface ConstraintType {
+  headers: any[];
+  queryParams: any[];
+  pathParams: any[];
+  body: any[];
 }
 
 export interface ExecutionResult {

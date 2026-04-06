@@ -63,8 +63,8 @@ const Workbench: React.FC<WorkbenchProps> = ({
   onVariablesChange,
   getEndpointList,
 }) => {
-  console.log("endpoint Is Captured");
-  console.log(endpoint);
+  console.log("savedTestCases");
+  console.log(savedTestCases);
 
   const [requestName, setRequestName] = useState(
     endpoint.summary || endpoint.path,
@@ -1160,7 +1160,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     setIsSaveModalOpen(true);
   };
 
-  const saveEndpoint = async (payload) => {
+  const saveEndpoint = async (payload: any) => {
     const data: any = await fetch(`${BASE_URL}/endpoint/save`, {
       method: "POST",
       headers: {
@@ -1206,12 +1206,20 @@ const Workbench: React.FC<WorkbenchProps> = ({
       auth: globalAuth,
     };
 
+    const constraintData = {
+      headers: {},
+      queryParams: {},
+      pathParams: {},
+      body: {},
+    };
+
     const payload = {
       apiId: endpoint.id,
-      testCaseData: endpointData,
+      request: endpointData,
+      constraints: constraintData,
       dependentId: dependentOnId !== "" ? [dependentOnId] : [],
       endpointName: saveName || requestName,
-      controller: endpoint.tags[0] || "General",
+      controller: (endpoint?.tags && endpoint?.tags[0]) ?? "General",
     };
     saveEndpoint(payload);
     setIsSaveModalOpen(false);
@@ -2397,7 +2405,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                             }
                           />
                           <div className="text-[10px] font-mono theme-text-secondary theme-bg-workbench px-1.5 py-0.5 rounded border theme-border">
-                            {tc.testCaseData.method}
+                            {tc.request.method}
                           </div>
                           <span className="text-xs theme-text-primary truncate flex-1 font-medium">
                             {tc.endpointName}

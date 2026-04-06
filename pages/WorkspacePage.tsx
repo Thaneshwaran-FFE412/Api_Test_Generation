@@ -33,7 +33,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     null,
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
-  const [testCases, setTestCases] = useState<SavedTestCase[] | null>(null);
+  const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(`apipro_vars_${project.id}`);
     return saved ? JSON.parse(saved) : {};
@@ -164,7 +164,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
   const handleDeleteTestCases = (ids: string[]) => {};
 
-  const handleSaveExecution = (name) => {
+  const handleSaveExecution = (name: any) => {
     console.log(name);
     toast.success("Module saved successfully!");
   };
@@ -567,10 +567,9 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   };
 
   const handleGenerateMTC = async (ids: string[]) => {
-    console.log("ids");
-    console.log(ids);
-
-    if (ids.length === 0) return false;
+    if (!testCases || ids.length === 0) {
+      return false;
+    }
 
     setIsGeneratingMTC(true);
 

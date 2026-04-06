@@ -59,24 +59,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
     }
   };
 
-  const payloadProcessor = (spec, fileName?: string) => {
-    const endpoints = parseSpec(spec);
-    const baseUrl = getBaseUrl(spec);
-
-    const newProject: SwaggerProject = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: spec.info?.title || fileName || "New Project",
-      description: spec.info?.description || "",
-      baseUrl,
-      spec,
-      endpoints,
-      savedTestCases: [],
-      createdAt: Date.now(),
-    };
-    addProject(newProject);
-    toast.success("API's Imported successfully");
-  };
-
   const handleImportUrl = async () => {
     if (!url) return;
     setIsLoading(true);
