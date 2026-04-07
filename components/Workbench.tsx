@@ -15,6 +15,8 @@ import {
 } from "../types";
 import AuthHeader from "./AuthHeader";
 import ConstraintModal from "./ConstraintModal";
+import VariableInput from "./VariableInput";
+import { BodyConfigModal } from "./BodyConfigModal";
 
 interface WorkbenchProps {
   endpoint: ApiEndpoint;
@@ -27,6 +29,25 @@ interface WorkbenchProps {
   onVariablesChange: (newVars: Record<string, string>) => void;
   getEndpointList: () => Promise<void>;
 }
+
+export interface ConstraintProp {
+  headers: Record<string, FieldConstraint>;
+  queryParams: Record<string, FieldConstraint>;
+  pathParams: Record<string, FieldConstraint>;
+  body: Record<string, FieldConstraint>;
+}
+
+type FieldConstraint = {
+  required?: boolean;
+  type?: string;
+  min?: number;
+  max?: number;
+  minLen?: number;
+  maxLen?: number;
+  enumValues?: string[];
+  pattern?: string;
+  mode: "static" | "dynamic";
+};
 
 const substituteVariables = (
   str: string,
@@ -63,9 +84,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
   onVariablesChange,
   getEndpointList,
 }) => {
-  console.log("savedTestCases");
-  console.log(savedTestCases);
-
   const [requestName, setRequestName] = useState(
     endpoint.summary || endpoint.path,
   );
@@ -73,6 +91,12 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [tempUrl, setTempUrl] = useState("");
   const [urlPath, setUrlPath] = useState(endpoint.path);
 
+  const [constraint, setConstraint] = useState<ConstraintProp>({
+    headers: {},
+    queryParams: {},
+    pathParams: {},
+    body: {},
+  });
   const [queryParams, setQueryParams] = useState<KVItem[]>([]);
   const [pathParams, setPathParams] = useState<KVItem[]>([]);
   const [headers, setHeaders] = useState<KVItem[]>([]);
@@ -162,441 +186,118 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const currentEndpointId = useRef(endpoint.id);
 
   useEffect(() => {
-    // Only reset the execution result if we actually switched to a DIFFERENT endpoint
+    if (!endpoint) return;
+    console.log("endpoint");
+    console.log(endpoint);
+
+    // Reset execution only when endpoint changes
     if (currentEndpointId.current !== endpoint.id) {
       setExecutionResult(null);
       setHasRunRequest(false);
       currentEndpointId.current = endpoint.id;
     }
 
+    const req = endpoint.requestBody; // ✅ FROM BACKEND
+
     setRequestName(endpoint.summary || endpoint.path);
     setUrlPath(endpoint.path);
     setMethod(endpoint.method.toUpperCase());
 
-    const resolveRef = (ref: string): any => {
-      if (!ref || !spec) return null;
-      const parts = ref.split("/");
-      let current = spec;
-      for (let i = 1; i < parts.length; i++) {
-        if (!current) return null;
-        current = current[parts[i]];
-      }
-      return current;
-    };
+    // ✅ Query Params
+    setQueryParams(
+      (req?.queryParams || []).map((p: any) => ({
+        id: endpoint.id,
+        key: p.key,
+        value: p.value ?? "",
+        enabled: p.enabled ?? true,
+        description: "",
+      })),
+    );
 
-    const getResolvedSchema = (
-      schemaObj: any,
-      visited = new Set<string>(),
-    ): any => {
-      if (!schemaObj) return schemaObj;
-      let resolved = { ...schemaObj };
+    // ✅ Path Params
+    setPathParams(
+      (req?.pathParams || []).map((p: any) => ({
+        id: endpoint.id,
+        key: p.key,
+        value: p.value ?? "",
+        enabled: p.enabled ?? true,
+        description: "",
+      })),
+    );
 
-      if (resolved.$ref) {
-        if (visited.has(resolved.$ref)) return resolved;
-        visited.add(resolved.$ref);
-        const refResolved = resolveRef(resolved.$ref);
-        if (refResolved) {
-          resolved = {
-            ...resolved,
-            ...getResolvedSchema(refResolved, visited),
-          };
-        }
-        delete resolved.$ref;
-      }
+    // ✅ Headers
+    setHeaders(
+      (req?.headers || []).map((h: any) => ({
+        id: endpoint.id,
+        key: h.key,
+        value: h.value ?? "",
+        enabled: h.enabled ?? true,
+        description: "",
+      })),
+    );
 
-      if (resolved.allOf && Array.isArray(resolved.allOf)) {
-        resolved.allOf.forEach((sub: any) => {
-          const subResolved = getResolvedSchema(sub, visited);
-          if (subResolved.properties) {
-            resolved.properties = {
-              ...(resolved.properties || {}),
-              ...subResolved.properties,
-            };
-          }
-          if (subResolved.required) {
-            resolved.required = [
-              ...(resolved.required || []),
-              ...subResolved.required,
-            ];
-          }
-        });
-      }
-      return resolved;
-    };
+    // ✅ Body Handling (SUPER SIMPLE NOW)
+    setBodyType(req?.bodyType || "none");
+    setRawFormat(req?.rawFormat || "json");
 
-    const getConstraint = (p: any): string => {
-      const c: string[] = [];
-      let schema = getResolvedSchema(p.schema || p);
-
-      const isRequired = p.required === true;
-      c.push(`required:${isRequired}`);
-
-      if (schema.type) c.push(`type:${schema.type}`);
-      if (schema.pattern) c.push(`pattern:${schema.pattern}`);
-      if (schema.minLength !== undefined) c.push(`minLen:${schema.minLength}`);
-      if (schema.maxLength !== undefined) c.push(`maxLen:${schema.maxLength}`);
-      if (schema.minimum !== undefined) c.push(`min:${schema.minimum}`);
-      if (schema.maximum !== undefined) c.push(`max:${schema.maximum}`);
-
-      if (schema.enum && Array.isArray(schema.enum)) {
-        c.push(`enum:${schema.enum.join("|")}`);
-      } else if (schema.items?.enum && Array.isArray(schema.items.enum)) {
-        c.push(`enum:${schema.items.enum.join("|")}`);
-      }
-
-      return c.join(", ");
-    };
-
-    const params: KVItem[] = (endpoint.parameters || [])
-      .filter((p) => p.in === "query")
-      .map((p) => {
-        const schema = getResolvedSchema(p.schema || p);
-        const options =
-          p.enum || p.items?.enum || schema.enum || schema.items?.enum;
-        return {
-          id: Math.random().toString(),
-          key: p.name,
-          value: p.default !== undefined ? String(p.default) : "",
-          enabled: true,
-          description: p.description || "",
-          options: Array.isArray(options) ? options.map(String) : undefined,
-          constraint: getConstraint(p),
-        };
-      });
-    setQueryParams(params);
-
-    const pathParamItems: KVItem[] = (endpoint.parameters || [])
-      .filter((p) => p.in === "path")
-      .map((p) => {
-        const schema = getResolvedSchema(p.schema || p);
-        const options =
-          p.enum || p.items?.enum || schema.enum || schema.items?.enum;
-        return {
-          id: Math.random().toString(),
-          key: p.name,
-          value: p.default !== undefined ? String(p.default) : "",
-          enabled: true,
-          description: p.description || "",
-          options: Array.isArray(options) ? options.map(String) : undefined,
-          constraint: getConstraint(p),
-        };
-      });
-    setPathParams(pathParamItems);
-
-    const headerItems: KVItem[] = (endpoint.parameters || [])
-      .filter((p) => p.in === "header")
-      .map((p) => {
-        const schema = getResolvedSchema(p.schema || p);
-        const options =
-          p.enum || p.items?.enum || schema.enum || schema.items?.enum;
-        return {
-          id: Math.random().toString(),
-          key: p.name,
-          value: p.default !== undefined ? String(p.default) : "",
-          enabled: true,
-          description: p.description || "",
-          options: Array.isArray(options) ? options.map(String) : undefined,
-          constraint: getConstraint(p),
-        };
-      });
-
-    const getRawFormatFromMime = (mime: string): RawFormat => {
-      if (mime.includes("json")) return "json";
-      if (mime.includes("xml")) return "xml";
-      if (mime.includes("javascript")) return "javascript";
-      if (mime.includes("html")) return "html";
-      return "text";
-    };
-
-    const generateMockFromSchema = (schema: any): string => {
-      const resolveRef = (ref: string): any => {
-        if (!ref || !spec) return null;
-        const parts = ref.split("/");
-        let current = spec;
-        for (let i = 1; i < parts.length; i++) {
-          if (!current) return null;
-          current = current[parts[i]];
-        }
-        return current;
-      };
-
-      const getResolvedSchema = (
-        schemaObj: any,
-        visited = new Set<string>(),
-      ): any => {
-        if (!schemaObj) return schemaObj;
-        let resolved = { ...schemaObj };
-
-        if (resolved.$ref) {
-          if (visited.has(resolved.$ref)) return resolved;
-          visited.add(resolved.$ref);
-          const refResolved = resolveRef(resolved.$ref);
-          if (refResolved) {
-            resolved = {
-              ...resolved,
-              ...getResolvedSchema(refResolved, visited),
-            };
-          }
-          delete resolved.$ref;
-        }
-
-        if (resolved.allOf && Array.isArray(resolved.allOf)) {
-          resolved.allOf.forEach((sub: any) => {
-            const subResolved = getResolvedSchema(sub, visited);
-            if (subResolved.properties) {
-              resolved.properties = {
-                ...(resolved.properties || {}),
-                ...subResolved.properties,
-              };
-            }
-            if (subResolved.required) {
-              resolved.required = [
-                ...(resolved.required || []),
-                ...subResolved.required,
-              ];
-            }
-          });
-        }
-        return resolved;
-      };
-
-      const generateMock = (s: any, visited = new Set<string>()): any => {
-        if (!s) return null;
-
-        const resolved = getResolvedSchema(s, visited);
-
-        if (resolved.example !== undefined) return resolved.example;
-        if (resolved.default !== undefined) return resolved.default;
-
-        if (resolved.enum && resolved.enum.length > 0) return resolved.enum[0];
-
-        if (resolved.type === "object" || resolved.properties) {
-          const mock: any = {};
-          const props = resolved.properties || {};
-          Object.keys(props).forEach((key) => {
-            mock[key] = generateMock(props[key], new Set(visited));
-          });
-          return mock;
-        }
-
-        if (resolved.type === "array") {
-          return [generateMock(resolved.items, new Set(visited))];
-        }
-
-        switch (resolved.type) {
-          case "string":
-            return resolved.format === "date-time"
-              ? new Date().toISOString()
-              : "string";
-          case "integer":
-          case "number":
-            return 0;
-          case "boolean":
-            return true;
-          default:
-            return "string";
-        }
-      };
-
-      const mockObj = generateMock(schema);
-      return mockObj ? JSON.stringify(mockObj, null, 2) : "";
-    };
-
-    const schemaToKV = (schema: any): KVItem[] => {
-      const resolveRef = (ref: string): any => {
-        if (!ref || !spec) return null;
-        const parts = ref.split("/");
-        let current = spec;
-        for (let i = 1; i < parts.length; i++) {
-          if (!current) return null;
-          current = current[parts[i]];
-        }
-        return current;
-      };
-
-      const getResolvedSchema = (
-        schemaObj: any,
-        visited = new Set<string>(),
-      ): any => {
-        if (!schemaObj) return schemaObj;
-        let resolved = { ...schemaObj };
-
-        if (resolved.$ref) {
-          if (visited.has(resolved.$ref)) return resolved;
-          visited.add(resolved.$ref);
-          const refResolved = resolveRef(resolved.$ref);
-          if (refResolved) {
-            resolved = {
-              ...resolved,
-              ...getResolvedSchema(refResolved, visited),
-            };
-          }
-          delete resolved.$ref;
-        }
-
-        if (resolved.allOf && Array.isArray(resolved.allOf)) {
-          resolved.allOf.forEach((sub: any) => {
-            const subResolved = getResolvedSchema(sub, visited);
-            if (subResolved.properties) {
-              resolved.properties = {
-                ...(resolved.properties || {}),
-                ...subResolved.properties,
-              };
-            }
-            if (subResolved.required) {
-              resolved.required = [
-                ...(resolved.required || []),
-                ...subResolved.required,
-              ];
-            }
-          });
-        }
-        return resolved;
-      };
-
-      const targetSchema = getResolvedSchema(schema);
-
-      if (!targetSchema || !targetSchema.properties) return [];
-      return Object.keys(targetSchema.properties).map((key) => {
-        const propSchema = getResolvedSchema(targetSchema.properties[key]);
-        return {
-          id: Math.random().toString(),
-          key,
-          value:
-            propSchema.default !== undefined
-              ? String(propSchema.default)
-              : propSchema.example !== undefined
-                ? String(propSchema.example)
-                : "",
-          enabled: true,
-          type:
-            propSchema.format === "binary" || propSchema.type === "file"
-              ? "file"
-              : "text",
-          description: propSchema.description || "",
-        };
-      });
-    };
-
-    let initialBody = "";
-    let detectedBodyType: BodyType = "none";
-    let detectedRawFormat: RawFormat = "json";
-    let detectedFormData: KVItem[] = [];
-    let detectedUrlEncoded: KVItem[] = [];
-
-    if (endpoint.requestBody) {
-      const content = endpoint.requestBody.content || {};
-      const mimeTypes = Object.keys(content);
-      if (mimeTypes.length > 0) {
-        if (content["application/json"]) {
-          detectedBodyType = "raw";
-          detectedRawFormat = "json";
-          const media = content["application/json"];
-          initialBody = media.example
-            ? typeof media.example === "object"
-              ? JSON.stringify(media.example, null, 2)
-              : String(media.example)
-            : generateMockFromSchema(media.schema);
-        } else if (content["multipart/form-data"]) {
-          detectedBodyType = "form-data";
-          detectedFormData = schemaToKV(content["multipart/form-data"].schema);
-        } else if (content["application/x-www-form-urlencoded"]) {
-          detectedBodyType = "x-www-form-urlencoded";
-          detectedUrlEncoded = schemaToKV(
-            content["application/x-www-form-urlencoded"].schema,
-          );
-        } else if (content["application/octet-stream"]) {
-          detectedBodyType = "binary";
-        } else {
-          const mime = mimeTypes[0];
-          detectedBodyType = "raw";
-          detectedRawFormat = getRawFormatFromMime(mime);
-          const media = content[mime];
-          initialBody = media.example
-            ? typeof media.example === "object"
-              ? JSON.stringify(media.example, null, 2)
-              : String(media.example)
-            : generateMockFromSchema(media.schema);
-        }
-      }
-    } else {
-      const bodyParam = endpoint.parameters?.find((p) => p.in === "body");
-      const formDataParams = endpoint.parameters?.filter(
-        (p) => p.in === "formData",
+    if (req?.bodyType === "raw") {
+      setBodyContent(
+        typeof req.body === "object"
+          ? JSON.stringify(req.body, null, 2)
+          : req.body || "",
       );
-      if (bodyParam) {
-        detectedBodyType = "raw";
-        detectedRawFormat = "json";
-        initialBody = bodyParam.example
-          ? typeof bodyParam.example === "object"
-            ? JSON.stringify(bodyParam.example, null, 2)
-            : String(bodyParam.example)
-          : generateMockFromSchema(bodyParam.schema);
-      } else if (formDataParams && formDataParams.length > 0) {
-        const consumes = (endpoint as any).consumes || [];
-        const isUrlEncoded = consumes.includes(
-          "application/x-www-form-urlencoded",
-        );
-        detectedBodyType = isUrlEncoded ? "x-www-form-urlencoded" : "form-data";
-        const kvs = formDataParams.map((p) => ({
-          id: Math.random().toString(),
-          key: p.name,
-          value:
-            p.default !== undefined
-              ? String(p.default)
-              : p.example !== undefined
-                ? String(p.example)
-                : "",
-          enabled: true,
-          type: (p.type === "file" ? "file" : "text") as "text" | "file",
-          description: p.description || "",
-        }));
-        if (isUrlEncoded) detectedUrlEncoded = kvs;
-        else detectedFormData = kvs;
-      }
     }
 
-    const contentTypeVal =
-      detectedBodyType === "raw"
-        ? `application/${detectedRawFormat}`
-        : detectedBodyType === "form-data"
-          ? "multipart/form-data"
-          : detectedBodyType === "x-www-form-urlencoded"
-            ? "application/x-www-form-urlencoded"
-            : null;
-    if (
-      contentTypeVal &&
-      !headerItems.some((h) => h.key.toLowerCase() === "content-type")
-    ) {
-      headerItems.push({
-        id: "ct-auto",
-        key: "Content-Type",
-        value: contentTypeVal,
-        enabled: true,
-        description: "Auto-detected",
-      });
-    }
+    setFormData(
+      (req?.formData || []).map((f: any) => ({
+        id: endpoint.id,
+        key: f.key,
+        value: f.value ?? "",
+        enabled: f.enabled ?? true,
+        type: f.type || "text",
+        description: "",
+        mode: "static",
+      })),
+    );
 
-    setHeaders(headerItems);
-    setBodyType(detectedBodyType);
-    setRawFormat(detectedRawFormat);
-    setBodyContent(initialBody);
-    setJsonFields([]);
-    setFormData(detectedFormData);
-    setUrlEncoded(detectedUrlEncoded);
+    setUrlEncoded(
+      (req?.urlEncoded || []).map((u: any) => ({
+        id: endpoint.id,
+        key: u.key,
+        value: u.value ?? "",
+        enabled: u.enabled ?? true,
+        type: u.type || "text",
+        description: "",
+      })),
+    );
 
-    // Default assertion based on method
+    // ✅ Default assertion
     const defaultStatusCode =
       endpoint.method.toUpperCase() === "POST" ? "201" : "200";
+
     setAssertions([
       {
-        id: Math.random().toString(),
+        id: endpoint.id,
         type: "status_code",
         operator: "eq",
         expected: defaultStatusCode,
       },
     ]);
+
+    // ✅ Constraints (still useful)
+    // setConstraint({
+    //   headers: endpoint.constraint?.headers || {},
+    //   queryParams: endpoint.constraint?.queryParams || {},
+    //   pathParams: endpoint.constraint?.pathParams || {},
+    //   body: endpoint.constraint?.body || {},
+    // });
+    // setConstraint(endpoint.constraint);
   }, [endpoint.id, baseUrl]); // Dependency changed to ID to be stable
+
+  // useEffect(() => {
+  //   console.log("constraint changed");
+  //   console.log(constraint);
+  // }, [constraint]);
 
   useEffect(() => {
     let path = urlPath;
@@ -626,49 +327,49 @@ const Workbench: React.FC<WorkbenchProps> = ({
     setTempUrl(url);
   }, [endpoint.id, baseUrl, queryParams, pathParams, urlPath]);
 
-  useEffect(() => {
-    const allValues = [
-      ...queryParams.map((p) => p.value),
-      ...pathParams.map((p) => p.value),
-      ...headers.map((p) => p.value),
-      bodyContent,
-      preRequestScript,
-      postResponseScript,
-    ].join(" ");
+  // useEffect(() => {
+  //   const allValues = [
+  //     ...queryParams.map((p) => p.value),
+  //     ...pathParams.map((p) => p.value),
+  //     ...headers.map((p) => p.value),
+  //     bodyContent,
+  //     preRequestScript,
+  //     postResponseScript,
+  //   ].join(" ");
 
-    const curlyMatches = [...allValues.matchAll(/\{\{(.+?)\}\}/g)].map(
-      (m) => m[1],
-    );
-    const dollarMatches = [...allValues.matchAll(/\$([a-zA-Z0-9_]+)/g)].map(
-      (m) => m[1],
-    );
-    const dollarBraceMatches = [
-      ...allValues.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g),
-    ].map((m) => m[1]);
-    const foundKeys = Array.from(
-      new Set([...curlyMatches, ...dollarMatches, ...dollarBraceMatches]),
-    );
+  //   const curlyMatches = [...allValues.matchAll(/\{\{(.+?)\}\}/g)].map(
+  //     (m) => m[1],
+  //   );
+  //   const dollarMatches = [...allValues.matchAll(/\$([a-zA-Z0-9_]+)/g)].map(
+  //     (m) => m[1],
+  //   );
+  //   const dollarBraceMatches = [
+  //     ...allValues.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g),
+  //   ].map((m) => m[1]);
+  //   const foundKeys = Array.from(
+  //     new Set([...curlyMatches, ...dollarMatches, ...dollarBraceMatches]),
+  //   );
 
-    let changed = false;
-    const newVars = { ...variables };
-    foundKeys.forEach((key) => {
-      if (newVars[key] === undefined) {
-        newVars[key] = "";
-        changed = true;
-      }
-    });
+  //   let changed = false;
+  //   const newVars = { ...variables };
+  //   foundKeys.forEach((key) => {
+  //     if (newVars[key] === undefined) {
+  //       newVars[key] = "";
+  //       changed = true;
+  //     }
+  //   });
 
-    if (changed) {
-      onVariablesChange(newVars);
-    }
-  }, [
-    queryParams,
-    pathParams,
-    headers,
-    bodyContent,
-    variables,
-    onVariablesChange,
-  ]);
+  //   if (changed) {
+  //     onVariablesChange(newVars);
+  //   }
+  // }, [
+  //   queryParams,
+  //   pathParams,
+  //   headers,
+  //   bodyContent,
+  //   variables,
+  //   onVariablesChange,
+  // ]);
 
   const evaluateAssertions = (res: any, assertions: Assertion[]): any[] => {
     return assertions.map((a) => {
@@ -1185,6 +886,9 @@ const Workbench: React.FC<WorkbenchProps> = ({
       return;
     }
 
+    console.log("constraint");
+    console.log(constraint);
+
     const endpointData = {
       method,
       url: tempUrl,
@@ -1205,18 +909,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
       setting,
       auth: globalAuth,
     };
-
-    const constraintData = {
-      headers: {},
-      queryParams: {},
-      pathParams: {},
-      body: {},
-    };
-
     const payload = {
       apiId: endpoint.id,
       request: endpointData,
-      constraints: constraintData,
+      constraints: constraint,
       dependentId: dependentOnId !== "" ? [dependentOnId] : [],
       endpointName: saveName || requestName,
       controller: (endpoint?.tags && endpoint?.tags[0]) ?? "General",
@@ -1408,6 +1104,9 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 </h4>
                 {pathParams.length > 0 ? (
                   <KVEditor
+                    sectionType="pathParams"
+                    setConstraint={setConstraint}
+                    constraint={constraint}
                     isEditable={false}
                     items={pathParams}
                     onUpdate={setPathParams}
@@ -1424,7 +1123,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
                   Query Parameters
                 </h4>
                 <KVEditor
+                  sectionType="queryParams"
                   isEditable={true}
+                  setConstraint={setConstraint}
+                  constraint={constraint}
                   items={queryParams}
                   onUpdate={setQueryParams}
                   variables={variables}
@@ -1439,7 +1141,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 Request Headers
               </h4>
               <KVEditor
+                sectionType="headers"
                 isEditable={true}
+                setConstraint={setConstraint}
+                constraint={constraint}
                 items={headers}
                 onUpdate={setHeaders}
                 variables={variables}
@@ -1528,8 +1233,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
               )}
               {bodyType === "form-data" && (
                 <KVEditor
+                  sectionType="body"
                   isEditable={true}
                   items={formData}
+                  setConstraint={setConstraint}
+                  constraint={constraint}
                   onUpdate={setFormData}
                   showType
                   variables={variables}
@@ -1537,8 +1245,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
               )}
               {bodyType === "x-www-form-urlencoded" && (
                 <KVEditor
+                  sectionType="body"
                   isEditable={true}
                   items={urlEncoded}
+                  setConstraint={setConstraint}
+                  constraint={constraint}
                   onUpdate={setUrlEncoded}
                   variables={variables}
                 />
@@ -2342,13 +2053,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
       {showBodyConfig && (
         <BodyConfigModal
           endpoint={endpoint}
-          format={rawFormat}
-          content={bodyContent}
           variables={variables}
-          spec={spec}
-          onClose={() => setShowBodyConfig(false)}
-          onUpdate={setBodyContent}
-          onUpdateFields={setJsonFields}
         />
       )}
       {isSaveModalOpen && (
@@ -2443,160 +2148,23 @@ const Workbench: React.FC<WorkbenchProps> = ({
 };
 
 interface KVEditorProps {
+  sectionType: "queryParams" | "headers" | "pathParams" | "body";
   isEditable: boolean;
   items: KVItem[];
   onUpdate: (items: KVItem[]) => void;
   showType?: boolean;
+  setConstraint: React.Dispatch<React.SetStateAction<ConstraintProp>>;
+  constraint: ConstraintProp;
   variables: Record<string, string>;
 }
 
-const VariableInput: React.FC<{
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-  className?: string;
-  variables: Record<string, string>;
-  readOnly?: boolean;
-  type?: "text" | "textarea";
-  insertRawName?: boolean;
-}> = ({
-  value,
-  onChange,
-  placeholder,
-  className,
-  variables,
-  readOnly,
-  type = "text",
-  insertRawName = false,
-}) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [cursorPos, setCursorPos] = useState(0);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-
-  const updateCursorPos = () => {
-    if (inputRef.current) {
-      setCursorPos(inputRef.current.selectionStart || 0);
-    }
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const newVal = e.target.value;
-    const pos = e.target.selectionStart || 0;
-    setCursorPos(pos);
-    onChange(newVal);
-
-    // Show dropdown if last typed char was $
-    if (newVal[pos - 1] === "$") {
-      setShowDropdown(true);
-    } else {
-      setShowDropdown(false);
-    }
-  };
-
-  const selectVariable = (varName: string) => {
-    const before = value.substring(0, cursorPos);
-    const after = value.substring(cursorPos);
-
-    const cleanBefore = before.endsWith("$") ? before.slice(0, -1) : before;
-    const newVal = insertRawName
-      ? cleanBefore + varName + after
-      : cleanBefore + "${" + varName + "}" + after;
-
-    onChange(newVal);
-    setShowDropdown(false);
-
-    // Focus back and set cursor after the inserted variable
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        const newPos = insertRawName
-          ? cleanBefore.length + varName.length
-          : cleanBefore.length + varName.length + 3;
-        inputRef.current.setSelectionRange(newPos, newPos);
-      }
-    }, 0);
-  };
-
-  return (
-    <div
-      className={`relative flex-1 flex ${type === "textarea" ? "items-stretch" : "items-center"}`}
-    >
-      {type === "textarea" ? (
-        <textarea
-          ref={inputRef as any}
-          className={`${className} h-full`}
-          placeholder={placeholder}
-          value={value}
-          readOnly={readOnly}
-          onChange={handleInputChange}
-          onKeyUp={updateCursorPos}
-          onClick={updateCursorPos}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-        />
-      ) : (
-        <input
-          ref={inputRef as any}
-          type="text"
-          className={className}
-          placeholder={placeholder}
-          value={value}
-          readOnly={readOnly}
-          onChange={handleInputChange}
-          onKeyUp={updateCursorPos}
-          onClick={updateCursorPos}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-        />
-      )}
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          updateCursorPos();
-          setShowDropdown(!showDropdown);
-        }}
-        className={`absolute right-3 text-indigo-400 hover:text-indigo-300 transition-colors p-1 z-10 ${type === "textarea" ? "top-3" : ""}`}
-        title="Insert variable"
-      >
-        <i className="fas fa-dollar-sign text-[10px]"></i>
-      </button>
-      {showDropdown && (
-        <div
-          onMouseDown={(e) => e.preventDefault()}
-          className={`absolute z-50 right-2 w-48 theme-bg-surface border theme-border rounded-lg shadow-2xl max-h-48 overflow-y-auto py-1 animate-in fade-in zoom-in duration-150 ${type === "textarea" ? "top-10" : "top-8"}`}
-        >
-          <div className="px-3 py-1 border-b theme-border mb-1">
-            <span className="text-[8px] font-black theme-text-secondary uppercase tracking-widest">
-              Select Variable
-            </span>
-          </div>
-          {Object.keys(variables).length === 0 ? (
-            <div className="px-3 py-4 text-center text-[10px] theme-text-secondary italic">
-              No variables defined
-            </div>
-          ) : (
-            Object.keys(variables).map((v) => (
-              <button
-                key={v}
-                onClick={() => selectVariable(v)}
-                className="w-full text-left px-3 py-2 text-[10px] font-bold theme-text-primary hover:theme-accent-bg hover:text-white transition-all flex items-center justify-between group"
-              >
-                <span>{v}</span>
-                <i className="fas fa-plus text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const KVEditor: React.FC<KVEditorProps> = ({
+  sectionType,
   isEditable = true,
   items,
   onUpdate,
+  setConstraint,
+  constraint,
   showType,
   variables,
 }) => {
@@ -2630,7 +2198,6 @@ const KVEditor: React.FC<KVEditorProps> = ({
         <span>Key</span>
         <span>Value</span>
         <span>Constraint</span>
-        <span>Mode</span>
         <span></span>
       </div>
       <div className="space-y-2">
@@ -2721,22 +2288,6 @@ const KVEditor: React.FC<KVEditorProps> = ({
               readOnly
               onClick={() => setEditingConstraintId(item.id)}
             />
-            <div className="flex justify-center">
-              <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border">
-                <button
-                  onClick={() => updateRow(item.id, "mode", "static")}
-                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${!item.mode || item.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                >
-                  Static
-                </button>
-                <button
-                  onClick={() => updateRow(item.id, "mode", "dynamic")}
-                  className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${item.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                >
-                  Dynamic
-                </button>
-              </div>
-            </div>
             {isEditable && (
               <div className="flex justify-center">
                 <button
@@ -2765,6 +2316,9 @@ const KVEditor: React.FC<KVEditorProps> = ({
         }
         onClose={() => setEditingConstraintId(null)}
         onSave={(val) => {
+          console.log("val");
+          console.log(val);
+
           if (editingConstraintId) {
             const newItems = items.map((item) => {
               if (item.id === editingConstraintId) {
@@ -2777,6 +2331,9 @@ const KVEditor: React.FC<KVEditorProps> = ({
               }
               return item;
             });
+            console.log("newItems");
+            console.log(newItems);
+
             onUpdate(newItems);
           }
         }}
@@ -2790,558 +2347,488 @@ interface BodyConfigModalProps {
   format: RawFormat;
   content: string;
   variables: Record<string, string>;
+  setConstraint: React.Dispatch<React.SetStateAction<ConstraintProp>>;
+  constraint: ConstraintProp;
   spec: any;
   onClose: () => void;
   onUpdate: (val: string) => void;
   onUpdateFields?: (fields: KVItem[]) => void;
 }
 
-const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
-  endpoint,
-  format,
-  content,
-  variables,
-  spec,
-  onClose,
-  onUpdate,
-  onUpdateFields,
-}) => {
-  const [localContent, setLocalContent] = useState(content);
-  const [jsonFields, setJsonFields] = useState<KVItem[]>([]);
-  const [editingConstraintId, setEditingConstraintId] = useState<string | null>(
-    null,
-  );
+// const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
+//   endpoint,
+//   format,
+//   content,
+//   variables,
+//   setConstraint,
+//   constraint,
+//   spec,
+//   onClose,
+//   onUpdate,
+//   onUpdateFields,
+// }) => {
+//   console.log("constraint.body");
+//   console.log(constraint.body);
 
-  useEffect(() => {
-    const fields: KVItem[] = [];
+//   const [localContent, setLocalContent] = useState(content);
+//   const [jsonFields, setJsonFields] = useState<KVItem[]>([]);
+//   const [editingConstraintId, setEditingConstraintId] = useState<string | null>(
+//     null,
+//   );
 
-    const resolveRef = (ref: string): any => {
-      if (!ref || !spec) return null;
-      const parts = ref.split("/");
-      let current = spec;
-      for (let i = 1; i < parts.length; i++) {
-        if (!current) return null;
-        current = current[parts[i]];
-      }
-      return current;
-    };
+//   useEffect(() => {
+//     if (format !== "json") return;
 
-    const getConstraintForPath = (
-      path: string,
-    ): { constraint: string; options?: string[] } => {
-      let schema: any = null;
-      if (endpoint.requestBody?.content?.["application/json"]?.schema) {
-        schema = endpoint.requestBody.content["application/json"].schema;
-      } else {
-        const bodyParam = endpoint.parameters?.find((p) => p.in === "body");
-        if (bodyParam?.schema) {
-          schema = bodyParam.schema;
-        }
-      }
+//     try {
+//       const parsed = JSON.parse(content);
+//       console.log("parsed One");
+//       console.log(parsed);
 
-      if (!schema) return { constraint: "" };
+//       const fields: KVItem[] = [];
 
-      const getResolvedSchema = (
-        schemaObj: any,
-        visited = new Set<string>(),
-      ): any => {
-        if (!schemaObj) return schemaObj;
-        let resolved = { ...schemaObj };
+//       const flatten = (obj: any, prefix = "") => {
+//         if (obj === null || obj === undefined) return;
 
-        if (resolved.$ref) {
-          if (visited.has(resolved.$ref)) return resolved;
-          visited.add(resolved.$ref);
-          const refResolved = resolveRef(resolved.$ref);
-          if (refResolved) {
-            resolved = {
-              ...resolved,
-              ...getResolvedSchema(refResolved, visited),
-            };
-          }
-          delete resolved.$ref;
-        }
+//         if (Array.isArray(obj)) {
+//           obj.forEach((item, index) => {
+//             const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
+//             flatten(item, path);
+//           });
+//         } else if (typeof obj === "object") {
+//           Object.keys(obj).forEach((key) => {
+//             const path = prefix ? `${prefix}.${key}` : key;
+//             flatten(obj[key], path);
+//           });
+//         } else {
+//           // ✅ Get constraint from backend
+//           const constraintObj = constraint.body?.[prefix];
 
-        if (resolved.allOf && Array.isArray(resolved.allOf)) {
-          resolved.allOf.forEach((sub: any) => {
-            const subResolved = getResolvedSchema(sub, visited);
-            if (subResolved.properties) {
-              resolved.properties = {
-                ...(resolved.properties || {}),
-                ...subResolved.properties,
-              };
-            }
-            if (subResolved.required) {
-              resolved.required = [
-                ...(resolved.required || []),
-                ...subResolved.required,
-              ];
-            }
-          });
-        }
-        return resolved;
-      };
+//           let constraintStr = "";
+//           let options: string[] | undefined;
 
-      const parts = path.split(/\.|(?=\[)/).map((p) => p.replace(/\[|\]/g, ""));
-      let current = getResolvedSchema(schema);
-      let isRequired = false;
+//           if (constraintObj) {
+//             const c: string[] = [];
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (!current) break;
+//             if (constraintObj.required !== undefined) {
+//               c.push(`required:${constraintObj.required}`);
+//             } else {
+//               c.push(`required:false`);
+//             }
+//             if (constraintObj.type) c.push(`type:${constraintObj.type}`);
+//             if (constraintObj.pattern)
+//               c.push(`pattern:${constraintObj.pattern}`);
+//             if (constraintObj.minLen !== undefined)
+//               c.push(`minLen:${constraintObj.minLen}`);
+//             if (constraintObj.maxLen !== undefined)
+//               c.push(`maxLen:${constraintObj.maxLen}`);
+//             if (constraintObj.min !== undefined)
+//               c.push(`min:${constraintObj.min}`);
+//             if (constraintObj.max !== undefined)
+//               c.push(`max:${constraintObj.max}`);
 
-        current = getResolvedSchema(current);
+//             if (
+//               constraintObj.enumValues &&
+//               constraintObj.enumValues.length > 0
+//             ) {
+//               options = constraintObj.enumValues;
+//               c.push(`enum:${constraintObj.enumValues.join("|")}`);
+//             }
 
-        if (!isNaN(parseInt(part))) {
-          // Array index
-          current = current.items
-            ? getResolvedSchema(current.items)
-            : undefined;
-        } else {
-          // Object property
-          if (
-            current.required &&
-            Array.isArray(current.required) &&
-            current.required.includes(part)
-          ) {
-            isRequired = true;
-          } else {
-            isRequired = true;
-          }
-          current = current.properties ? current.properties[part] : undefined;
-        }
-      }
+//             c.push(`mode:${constraintObj.mode || "static"}`);
 
-      if (!current) return { constraint: "" };
-      current = getResolvedSchema(current);
+//             constraintStr = c.join(", ");
+//           }
 
-      const c: string[] = [];
-      c.push(`required:${isRequired}`);
-      if (current.type) c.push(`type:${current.type}`);
-      if (current.pattern) c.push(`pattern:${current.pattern}`);
-      if (current.minLength !== undefined)
-        c.push(`minLen:${current.minLength}`);
-      if (current.maxLength !== undefined)
-        c.push(`maxLen:${current.maxLength}`);
-      if (current.minimum !== undefined) c.push(`min:${current.minimum}`);
-      if (current.maximum !== undefined) c.push(`max:${current.maximum}`);
+//           fields.push({
+//             id: Math.random().toString(),
+//             key: prefix,
+//             value: String(obj),
+//             dataType: typeof obj,
+//             enabled: true,
+//             constraint: constraintStr,
+//             options,
+//           });
+//         }
+//       };
+//       flatten(parsed);
+//       setJsonFields(fields);
+//     } catch (e) {
+//       setJsonFields([]);
+//     }
+//   }, [content, constraint.body, format]);
 
-      let options: string[] | undefined = undefined;
-      if (current.enum && Array.isArray(current.enum)) {
-        options = current.enum.map(String);
-        c.push(`enum:"abc|efg"}`);
-        // c.push(`enum:${options.join("|")}`);
-      }
+//   const buildConstraintBody = () => {
+//     const map: Record<string, any> = {};
+//     console.log("jsonFields");
+//     console.log(jsonFields);
 
-      return { constraint: c.join(", "), options };
-    };
+//     jsonFields.forEach((f) => {
+//       console.log("jsonFields f event");
+//       console.log(f);
+//       const parsed = parseConstraintString(f.constraint || "");
+//       console.log("jsonFields parsed event");
+//       console.log(parsed);
+//       if (!parsed.mode) {
+//         parsed.mode = f.mode || "static";
+//       }
 
-    if (format === "json") {
-      try {
-        const parsed = JSON.parse(content);
-        const extractFields = (obj: any, prefix = "") => {
-          if (obj === null) return;
-          if (Array.isArray(obj)) {
-            obj.forEach((item, index) => {
-              const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-              if (typeof item === "object" && item !== null) {
-                extractFields(item, path);
-              } else {
-                const constraintData = getConstraintForPath(path);
-                fields.push({
-                  id: Math.random().toString(),
-                  key: path,
-                  value: String(item),
-                  dataType: typeof item,
-                  enabled: true,
-                  mode: "static",
-                  constraint: constraintData.constraint,
-                  options: constraintData.options,
-                });
-              }
-            });
-          } else if (typeof obj === "object") {
-            Object.keys(obj).forEach((key) => {
-              const path = prefix ? `${prefix}.${key}` : key;
-              const val = obj[key];
-              if (typeof val === "object" && val !== null) {
-                extractFields(val, path);
-              } else {
-                const constraintData = getConstraintForPath(path);
-                fields.push({
-                  id: Math.random().toString(),
-                  key: path,
-                  value: String(val),
-                  dataType: typeof val,
-                  enabled: true,
-                  mode: "static",
-                  constraint: constraintData.constraint,
-                  options: constraintData.options,
-                });
-              }
-            });
-          }
-        };
-        extractFields(parsed);
-        setJsonFields(fields);
-      } catch (e) {
-        // Not valid JSON
-      }
-    } else if (format === "xml") {
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(content, "application/xml");
-        const extractXmlFields = (node: Node, prefix = "") => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-            const path = prefix
-              ? `${prefix}.${element.tagName}`
-              : element.tagName;
+//       map[f.key] = parsed;
+//     });
 
-            // Attributes
-            if (element.attributes) {
-              for (let i = 0; i < element.attributes.length; i++) {
-                const attr = element.attributes[i];
-                fields.push({
-                  id: Math.random().toString(),
-                  key: `${path}[@${attr.name}]`,
-                  value: attr.value,
-                  dataType: "attribute",
-                  enabled: true,
-                  mode: "static",
-                });
-              }
-            }
+//     return map;
+//   };
 
-            // Children
-            if (
-              element.childNodes.length === 1 &&
-              element.childNodes[0].nodeType === Node.TEXT_NODE
-            ) {
-              fields.push({
-                id: Math.random().toString(),
-                key: path,
-                value: element.textContent || "",
-                dataType: "element",
-                enabled: true,
-                mode: "static",
-              });
-            } else {
-              for (let i = 0; i < element.childNodes.length; i++) {
-                extractXmlFields(element.childNodes[i], path);
-              }
-            }
-          }
-        };
-        if (xmlDoc.documentElement) {
-          extractXmlFields(xmlDoc.documentElement);
-        }
-        setJsonFields(fields);
-      } catch (e) {
-        // Not valid XML
-      }
-    }
-  }, [content, format, endpoint]);
+//   const handleApply = () => {
+//     if (format === "json" && jsonFields.length > 0) {
+//       try {
+//         const parsed = JSON.parse(localContent);
+//         const updateObj = (obj: any, path: string, val: any) => {
+//           // Handle array paths like [0] or items[0]
+//           const parts = path.split(/\.|(?=\[)/);
+//           let current = obj;
 
-  const handleApply = () => {
-    if (format === "json" && jsonFields.length > 0) {
-      try {
-        const parsed = JSON.parse(localContent);
-        const updateObj = (obj: any, path: string, val: any) => {
-          // Handle array paths like [0] or items[0]
-          const parts = path.split(/\.|(?=\[)/);
-          let current = obj;
+//           for (let i = 0; i < parts.length - 1; i++) {
+//             let part = parts[i];
+//             let isArray = false;
+//             let arrayIndex = -1;
 
-          for (let i = 0; i < parts.length - 1; i++) {
-            let part = parts[i];
-            let isArray = false;
-            let arrayIndex = -1;
+//             if (part.startsWith("[")) {
+//               isArray = true;
+//               arrayIndex = parseInt(part.substring(1, part.length - 1));
+//             }
 
-            if (part.startsWith("[")) {
-              isArray = true;
-              arrayIndex = parseInt(part.substring(1, part.length - 1));
-            }
+//             if (isArray) {
+//               if (!current[arrayIndex]) current[arrayIndex] = {};
+//               current = current[arrayIndex];
+//             } else {
+//               if (!current[part]) current[part] = {};
+//               current = current[part];
+//             }
+//           }
 
-            if (isArray) {
-              if (!current[arrayIndex]) current[arrayIndex] = {};
-              current = current[arrayIndex];
-            } else {
-              if (!current[part]) current[part] = {};
-              current = current[part];
-            }
-          }
+//           const lastPart = parts[parts.length - 1];
+//           let finalVal = val;
+//           if (val === "true") finalVal = true;
+//           else if (val === "false") finalVal = false;
+//           else if (!isNaN(Number(val)) && val.trim() !== "")
+//             finalVal = Number(val);
 
-          const lastPart = parts[parts.length - 1];
-          let finalVal = val;
-          if (val === "true") finalVal = true;
-          else if (val === "false") finalVal = false;
-          else if (!isNaN(Number(val)) && val.trim() !== "")
-            finalVal = Number(val);
+//           if (lastPart.startsWith("[")) {
+//             const idx = parseInt(lastPart.substring(1, lastPart.length - 1));
+//             current[idx] = finalVal;
+//           } else {
+//             current[lastPart] = finalVal;
+//           }
+//         };
+//         jsonFields.forEach((f) => {
+//           updateObj(parsed, f.key, f.value);
+//         });
+//         onUpdate(JSON.stringify(parsed, null, 2));
+//         if (onUpdateFields) onUpdateFields(jsonFields);
+//       } catch (e) {
+//         onUpdate(localContent);
+//         if (onUpdateFields) onUpdateFields(jsonFields);
+//       }
+//     } else if (format === "xml" && jsonFields.length > 0) {
+//       try {
+//         const parser = new DOMParser();
+//         const xmlDoc = parser.parseFromString(localContent, "application/xml");
 
-          if (lastPart.startsWith("[")) {
-            const idx = parseInt(lastPart.substring(1, lastPart.length - 1));
-            current[idx] = finalVal;
-          } else {
-            current[lastPart] = finalVal;
-          }
-        };
-        jsonFields.forEach((f) => {
-          updateObj(parsed, f.key, f.value);
-        });
-        onUpdate(JSON.stringify(parsed, null, 2));
-        if (onUpdateFields) onUpdateFields(jsonFields);
-      } catch (e) {
-        onUpdate(localContent);
-        if (onUpdateFields) onUpdateFields(jsonFields);
-      }
-    } else if (format === "xml" && jsonFields.length > 0) {
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(localContent, "application/xml");
+//         jsonFields.forEach((f) => {
+//           if (f.dataType === "attribute") {
+//             const lastDot = f.key.lastIndexOf(".");
+//             const bracketIdx = f.key.lastIndexOf("[@");
+//             const tagName =
+//               lastDot === -1
+//                 ? f.key.substring(0, bracketIdx)
+//                 : f.key.substring(lastDot + 1, bracketIdx);
+//             const attrName = f.key.substring(bracketIdx + 2, f.key.length - 1);
+//             const elements = xmlDoc.getElementsByTagName(tagName);
+//             if (elements.length > 0) {
+//               elements[0].setAttribute(attrName, f.value);
+//             }
+//           } else {
+//             const lastDot = f.key.lastIndexOf(".");
+//             const tagName =
+//               lastDot === -1 ? f.key : f.key.substring(lastDot + 1);
+//             const elements = xmlDoc.getElementsByTagName(tagName);
+//             if (elements.length > 0) {
+//               elements[0].textContent = f.value;
+//             }
+//           }
+//         });
+//         const serializer = new XMLSerializer();
+//         onUpdate(serializer.serializeToString(xmlDoc));
+//         if (onUpdateFields) onUpdateFields(jsonFields);
+//       } catch (e) {
+//         onUpdate(localContent);
+//         if (onUpdateFields) onUpdateFields(jsonFields);
+//       }
+//     } else {
+//       onUpdate(localContent);
+//       if (onUpdateFields) onUpdateFields(jsonFields);
+//     }
+//     const newBodyConstraints = buildConstraintBody();
 
-        jsonFields.forEach((f) => {
-          if (f.dataType === "attribute") {
-            const lastDot = f.key.lastIndexOf(".");
-            const bracketIdx = f.key.lastIndexOf("[@");
-            const tagName =
-              lastDot === -1
-                ? f.key.substring(0, bracketIdx)
-                : f.key.substring(lastDot + 1, bracketIdx);
-            const attrName = f.key.substring(bracketIdx + 2, f.key.length - 1);
-            const elements = xmlDoc.getElementsByTagName(tagName);
-            if (elements.length > 0) {
-              elements[0].setAttribute(attrName, f.value);
-            }
-          } else {
-            const lastDot = f.key.lastIndexOf(".");
-            const tagName =
-              lastDot === -1 ? f.key : f.key.substring(lastDot + 1);
-            const elements = xmlDoc.getElementsByTagName(tagName);
-            if (elements.length > 0) {
-              elements[0].textContent = f.value;
-            }
-          }
-        });
-        const serializer = new XMLSerializer();
-        onUpdate(serializer.serializeToString(xmlDoc));
-        if (onUpdateFields) onUpdateFields(jsonFields);
-      } catch (e) {
-        onUpdate(localContent);
-        if (onUpdateFields) onUpdateFields(jsonFields);
-      }
-    } else {
-      onUpdate(localContent);
-      if (onUpdateFields) onUpdateFields(jsonFields);
-    }
-    onClose();
-  };
+//     setConstraint((prev: any) => ({
+//       ...prev,
+//       body: newBodyConstraints,
+//     }));
+//     onClose();
+//   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="px-6 py-4 border-b theme-border flex items-center justify-between theme-accent-bg/5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg theme-accent-bg flex items-center justify-center text-white shadow-lg">
-              <i className="fas fa-code"></i>
-            </div>
-            <div>
-              <h3 className="text-sm font-black theme-text-primary uppercase tracking-widest">
-                Configure {format.toUpperCase()} Body
-              </h3>
-              <p className="text-[10px] theme-text-secondary font-bold">
-                Map fields to static or dynamic values
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-rose-500/10 text-rose-500 transition-all flex items-center justify-center"
-          >
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
+//   const parseConstraintString = (str: string) => {
+//     if (!str) return {};
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Side: JSON/XML Viewer */}
-          <div className="flex-1 border-r theme-border p-6 flex flex-col theme-bg-workbench/20">
-            <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
-              <i className="fas fa-file-alt"></i>
-              {format.toUpperCase()} Data
-            </h4>
-            <VariableInput
-              type="textarea"
-              className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-theme-accent-text/50 resize-none theme-text-primary shadow-inner"
-              value={localContent}
-              variables={variables}
-              onChange={setLocalContent}
-              placeholder={`Enter ${format.toUpperCase()} here...`}
-            />
-          </div>
+//     const obj: any = {};
+//     const parts = str.split(",");
 
-          {/* Right Side: Field Configuration */}
-          <div className="w-[700px] p-6 overflow-y-auto theme-bg-workbench/40">
-            <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
-              <i className="fas fa-tasks"></i>
-              Field Configuration
-            </h4>
-            {(format === "json" || format === "xml") &&
-            jsonFields.length > 0 ? (
-              <div className="border theme-border rounded-xl overflow-hidden theme-bg-workbench/20">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="text-left border-b theme-border theme-bg-workbench/30">
-                      <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-                        Field (JSON PATH)
-                      </th>
-                      <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-                        Current Value
-                      </th>
-                      <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-                        Constraint
-                      </th>
-                      <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest text-center">
-                        Mode
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y theme-border">
-                    {jsonFields.map((field, idx) => (
-                      <tr
-                        key={field.id}
-                        className="hover:theme-bg-surface transition-colors"
-                      >
-                        <td className="py-4 px-4 align-top min-w-[100px]">
-                          <div
-                            className="text-[11px] font-bold theme-text-primary font-mono break-all theme-bg-workbench/20 p-2 rounded border theme-border"
-                            title={field.key}
-                          >
-                            {field.key}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 align-top min-w-[200px]">
-                          {field.options && field.options.length > 0 ? (
-                            <select
-                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
-                              value={field.value}
-                              onChange={(e) => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].value = e.target.value;
-                                setJsonFields(newFields);
-                              }}
-                            >
-                              <option value="">-- Select --</option>
-                              {field.options.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <VariableInput
-                              className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
-                              placeholder="Value"
-                              value={field.value}
-                              variables={variables}
-                              onChange={(val) => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].value = val;
-                                setJsonFields(newFields);
-                              }}
-                            />
-                          )}
-                        </td>
-                        <td className="py-4 px-4 align-top min-w-[100px]">
-                          <input
-                            className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
-                            placeholder="constraint"
-                            value={field.constraint || ""}
-                            readOnly
-                            onClick={() => setEditingConstraintId(field.id)}
-                          />
-                        </td>
-                        <td className="py-4 px-4 align-top text-center">
-                          <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border w-fit mx-auto">
-                            <button
-                              onClick={() => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].mode = "static";
-                                setJsonFields(newFields);
-                              }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                            >
-                              Static
-                            </button>
-                            <button
-                              onClick={() => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].mode = "dynamic";
-                                setJsonFields(newFields);
-                              }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                            >
-                              Dynamic
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-                <i className="fas fa-info-circle text-4xl theme-text-secondary"></i>
-                <p className="text-xs theme-text-secondary font-medium px-10 leading-relaxed">
-                  {format === "json" || format === "xml"
-                    ? `Valid ${format.toUpperCase()} required to extract fields for configuration.`
-                    : "Field configuration is currently optimized for JSON and XML formats."}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+//     parts.forEach((p) => {
+//       const [key, val] = p.split(":").map((s) => s.trim());
 
-        <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/50">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 text-xs font-black theme-text-secondary uppercase hover:theme-text-primary transition-colors tracking-widest"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleApply}
-            className="px-8 py-2 theme-accent-bg text-white rounded-lg text-xs font-black uppercase shadow-lg hover:scale-105 active:scale-95 transition-all tracking-widest"
-          >
-            Apply Changes
-          </button>
-        </div>
-      </div>
-      <ConstraintModal
-        isOpen={!!editingConstraintId}
-        initialValue={
-          jsonFields.find((i) => i.id === editingConstraintId)?.constraint || ""
-        }
-        onClose={() => setEditingConstraintId(null)}
-        onSave={(val) => {
-          if (editingConstraintId) {
-            const newFields = [...jsonFields];
-            const idx = newFields.findIndex(
-              (f) => f.id === editingConstraintId,
-            );
-            if (idx !== -1) {
-              newFields[idx].constraint = val;
-              const enumMatch = val.match(/(?:^|,\s*)enum:([^,]+)/);
-              if (enumMatch) {
-                newFields[idx].options = enumMatch[1].split("|");
-              } else {
-                newFields[idx].options = undefined;
-              }
-              setJsonFields(newFields);
-            }
-          }
-        }}
-      />
-    </div>
-  );
-};
+//       if (!key) return;
+
+//       switch (key) {
+//         case "required":
+//           obj.required = val === "true";
+//           break;
+//         case "type":
+//           obj.type = val;
+//           break;
+//         case "pattern":
+//           obj.pattern = val;
+//           break;
+//         case "minLen":
+//           obj.minLen = Number(val);
+//           break;
+//         case "maxLen":
+//           obj.maxLen = Number(val);
+//           break;
+//         case "min":
+//           obj.min = Number(val);
+//           break;
+//         case "max":
+//           obj.max = Number(val);
+//           break;
+//         case "enum":
+//           obj.enumValues = val.split("|");
+//           break;
+//         case "mode":
+//           obj.mode = val;
+//           break;
+//       }
+//     });
+
+//     return obj;
+//   };
+
+//   return (
+//     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+//       <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+//         <div className="px-6 py-4 border-b theme-border flex items-center justify-between theme-accent-bg/5">
+//           <div className="flex items-center gap-3">
+//             <div className="w-8 h-8 rounded-lg theme-accent-bg flex items-center justify-center text-white shadow-lg">
+//               <i className="fas fa-code"></i>
+//             </div>
+//             <div>
+//               <h3 className="text-sm font-black theme-text-primary uppercase tracking-widest">
+//                 Configure {format.toUpperCase()} Body
+//               </h3>
+//               <p className="text-[10px] theme-text-secondary font-bold">
+//                 Map fields to static or dynamic values
+//               </p>
+//             </div>
+//           </div>
+//           <button
+//             onClick={onClose}
+//             className="w-8 h-8 rounded-full hover:bg-rose-500/10 text-rose-500 transition-all flex items-center justify-center"
+//           >
+//             <i className="fas fa-times"></i>
+//           </button>
+//         </div>
+
+//         <div className="flex-1 flex overflow-hidden">
+//           {/* Left Side: JSON/XML Viewer */}
+//           <div className="flex-1 border-r theme-border p-6 flex flex-col theme-bg-workbench/20">
+//             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
+//               <i className="fas fa-file-alt"></i>
+//               {format.toUpperCase()} Data
+//             </h4>
+//             <VariableInput
+//               type="textarea"
+//               className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-theme-accent-text/50 resize-none theme-text-primary shadow-inner"
+//               value={localContent}
+//               variables={variables}
+//               onChange={setLocalContent}
+//               placeholder={`Enter ${format.toUpperCase()} here...`}
+//             />
+//           </div>
+
+//           {/* Right Side: Field Configuration */}
+//           <div className="w-[700px] p-6 overflow-y-auto theme-bg-workbench/40">
+//             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
+//               <i className="fas fa-tasks"></i>
+//               Field Configuration
+//             </h4>
+//             {(format === "json" || format === "xml") &&
+//             jsonFields.length > 0 ? (
+//               <div className="border theme-border rounded-xl overflow-hidden theme-bg-workbench/20">
+//                 <table className="w-full border-collapse">
+//                   <thead>
+//                     <tr className="text-left border-b theme-border theme-bg-workbench/30">
+//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
+//                         Field (JSON PATH)
+//                       </th>
+//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
+//                         Current Value
+//                       </th>
+//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
+//                         Constraint
+//                       </th>
+//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest text-center">
+//                         Mode
+//                       </th>
+//                     </tr>
+//                   </thead>
+//                   <tbody className="divide-y theme-border">
+//                     {jsonFields.map((field, idx) => (
+//                       <tr
+//                         key={field.id}
+//                         className="hover:theme-bg-surface transition-colors"
+//                       >
+//                         <td className="py-4 px-4 align-top min-w-[100px]">
+//                           <div
+//                             className="text-[11px] font-bold theme-text-primary font-mono break-all theme-bg-workbench/20 p-2 rounded border theme-border"
+//                             title={field.key}
+//                           >
+//                             {field.key}
+//                           </div>
+//                         </td>
+//                         <td className="py-4 px-4 align-top min-w-[200px]">
+//                           {field.options && field.options.length > 0 ? (
+//                             <select
+//                               className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
+//                               value={field.value}
+//                               onChange={(e) => {
+//                                 const newFields = [...jsonFields];
+//                                 newFields[idx].value = e.target.value;
+//                                 setJsonFields(newFields);
+//                               }}
+//                             >
+//                               <option value="">-- Select --</option>
+//                               {field.options.map((opt) => (
+//                                 <option key={opt} value={opt}>
+//                                   {opt}
+//                                 </option>
+//                               ))}
+//                             </select>
+//                           ) : (
+//                             <VariableInput
+//                               className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
+//                               placeholder="Value"
+//                               value={field.value}
+//                               variables={variables}
+//                               onChange={(val) => {
+//                                 const newFields = [...jsonFields];
+//                                 newFields[idx].value = val;
+//                                 setJsonFields(newFields);
+//                               }}
+//                             />
+//                           )}
+//                         </td>
+//                         <td className="py-4 px-4 align-top min-w-[100px]">
+//                           <input
+//                             className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
+//                             placeholder="constraint"
+//                             value={field.constraint || ""}
+//                             readOnly
+//                             onClick={() => setEditingConstraintId(field.id)}
+//                           />
+//                         </td>
+//                         <td className="py-4 px-4 align-top text-center">
+//                           <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border w-fit mx-auto">
+//                             <button
+//                               onClick={() => {
+//                                 const newFields = [...jsonFields];
+//                                 newFields[idx].mode = "static";
+//                                 setJsonFields(newFields);
+//                               }}
+//                               className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
+//                             >
+//                               Static
+//                             </button>
+//                             <button
+//                               onClick={() => {
+//                                 const newFields = [...jsonFields];
+//                                 newFields[idx].mode = "dynamic";
+//                                 setJsonFields(newFields);
+//                               }}
+//                               className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
+//                             >
+//                               Dynamic
+//                             </button>
+//                           </div>
+//                         </td>
+//                       </tr>
+//                     ))}
+//                   </tbody>
+//                 </table>
+//               </div>
+//             ) : (
+//               <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+//                 <i className="fas fa-info-circle text-4xl theme-text-secondary"></i>
+//                 <p className="text-xs theme-text-secondary font-medium px-10 leading-relaxed">
+//                   {format === "json" || format === "xml"
+//                     ? `Valid ${format.toUpperCase()} required to extract fields for configuration.`
+//                     : "Field configuration is currently optimized for JSON and XML formats."}
+//                 </p>
+//               </div>
+//             )}
+//           </div>
+//         </div>
+
+//         <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/50">
+//           <button
+//             onClick={onClose}
+//             className="px-6 py-2 text-xs font-black theme-text-secondary uppercase hover:theme-text-primary transition-colors tracking-widest"
+//           >
+//             Cancel
+//           </button>
+//           <button
+//             onClick={handleApply}
+//             className="px-8 py-2 theme-accent-bg text-white rounded-lg text-xs font-black uppercase shadow-lg hover:scale-105 active:scale-95 transition-all tracking-widest"
+//           >
+//             Apply Changes
+//           </button>
+//         </div>
+//       </div>
+//       <ConstraintModal
+//         isOpen={!!editingConstraintId}
+//         initialValue={
+//           jsonFields.find((i) => i.id === editingConstraintId)?.constraint || ""
+//         }
+//         onClose={() => setEditingConstraintId(null)}
+//         onSave={(val) => {
+//           if (editingConstraintId) {
+//             const newFields = [...jsonFields];
+//             const idx = newFields.findIndex(
+//               (f) => f.id === editingConstraintId,
+//             );
+//             if (idx !== -1) {
+//               newFields[idx].constraint = val;
+//               const enumMatch = val.match(/(?:^|,\s*)enum:([^,]+)/);
+//               if (enumMatch) {
+//                 newFields[idx].options = enumMatch[1].split("|");
+//               } else {
+//                 newFields[idx].options = undefined;
+//               }
+//               setJsonFields(newFields);
+//             }
+//           }
+//         }}
+//       />
+//     </div>
+//   );
+// };
 
 export default Workbench;

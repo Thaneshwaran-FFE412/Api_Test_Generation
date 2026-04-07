@@ -33,7 +33,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     null,
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
-  const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);
+  const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);  
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(`apipro_vars_${project.id}`);
     return saved ? JSON.parse(saved) : {};
@@ -165,7 +165,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   const handleDeleteTestCases = (ids: string[]) => {};
 
   const handleSaveExecution = (name: any) => {
-    console.log(name);
     toast.success("Module saved successfully!");
   };
 
@@ -613,9 +612,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
       }
       const newGeneratedMTCData = { ...generatedMTCData };
       for (const tc of testCasesToProcess) {
-        console.log("project.endpoints");
-        console.log(project.endpoints);
-        console.log(tc);
         const endpoint = project.endpoints.find((e) => e.id === tc.apiId);
         if (!endpoint) continue;
 

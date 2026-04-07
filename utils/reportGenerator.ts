@@ -15,7 +15,7 @@ export const generateExcelReport = (
     const tc = savedTestCases.find((t) => t.id === id);
     if (!tc) continue;
 
-    const endpoint = endpoints.find((e) => e.id === tc.endpointId);
+    const endpoint = endpoints.find((e) => e.id === tc.id);
     if (!endpoint) continue;
 
     let sheetRows = excelDataByTestCase[id];
@@ -48,10 +48,11 @@ export const generateExcelReport = (
       ): string[] => {
         if (visited.has(testCase.id)) return [];
         visited.add(testCase.id);
-        if (testCase.dependentOn) {
-          const dep = savedTestCases.find((t) => t.id === testCase.dependentOn);
+
+        if (testCase.dependentId) {
+          const dep = savedTestCases.find((t) => t.id === testCase.dependentId[0]);
           if (dep) {
-            return [...getDependencies(dep, visited), dep.name];
+            return [...getDependencies(dep, visited), dep.endpointName];
           }
         }
         return [];
@@ -62,7 +63,7 @@ export const generateExcelReport = (
       const worksheet = XLSX.utils.json_to_sheet(sheetRows, { origin: "A5" });
 
       const moduleName = endpoint.tags?.[0] || "Default Module";
-      const requestName = tc.name;
+      const requestName = tc.endpointName;
 
       XLSX.utils.sheet_add_aoa(
         worksheet,

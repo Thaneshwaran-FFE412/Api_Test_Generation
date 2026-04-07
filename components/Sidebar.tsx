@@ -77,9 +77,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           </p>
         ) : (
           groupKeys.map((group) => {
-            // toggleGroup(group);
-            console.log("group");
-            console.log(collapsedGroups);
 
             return (
               <div key={group} className="mb-1">

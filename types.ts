@@ -79,6 +79,7 @@ export interface ApiEndpoint {
   requestBody?: any;
   responses?: any;
   name?: string;
+  constraint: ConstraintType;
   security?: any[];
 }
 
@@ -132,10 +133,10 @@ export interface TestCaseType {
 }
 
 export interface ConstraintType {
-  headers: any[];
-  queryParams: any[];
-  pathParams: any[];
-  body: any[];
+  headers: any;
+  queryParams: any;
+  pathParams: any;
+  body: any;
 }
 
 export interface ExecutionResult {

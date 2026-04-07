@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { ConstraintProp } from "./Workbench";
 
 interface ConstraintModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ const CONSTRAINT_OPTIONS = [
   "min",
   "max",
   "enum",
+  "generation mode",
 ];
 
 const ConstraintModal: React.FC<ConstraintModalProps> = ({
@@ -139,6 +141,15 @@ const ConstraintModal: React.FC<ConstraintModalProps> = ({
                   >
                     <option value="true">true</option>
                     <option value="false">false</option>
+                  </select>
+                ) : c.key === "generation mode" ? (
+                  <select
+                    value={c.value}
+                    onChange={(e) => handleChange(idx, "value", e.target.value)}
+                    className="theme-bg-workbench border theme-border rounded-lg px-3 py-2 text-xs theme-text-primary outline-none focus:border-theme-accent-text flex-1"
+                  >
+                    <option value="true">static</option>
+                    <option value="false">dynamic</option>
                   </select>
                 ) : c.key === "type" ? (
                   <select
