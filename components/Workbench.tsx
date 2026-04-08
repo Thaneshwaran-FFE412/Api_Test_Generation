@@ -576,13 +576,19 @@ const Workbench: React.FC<WorkbenchProps> = ({
       let proxyData: any = undefined;
       if (options.body instanceof URLSearchParams) {
         proxyData = options.body.toString();
-        plainHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+        plainHeaders["Content-Type"] = "application/x-www-form-urlencoded"; // ✅ fix
       } else if (options.body instanceof FormData) {
         const formDataArray: { key: string; value: string }[] = [];
         options.body.forEach((value, key) => {
           formDataArray.push({ key, value: value.toString() });
         });
         proxyData = { _isFormData: true, items: formDataArray };
+      } else if (typeof options.body === "string") {
+        try {
+          proxyData = JSON.parse(options.body);
+        } catch {
+          proxyData = options.body;
+        }
       } else {
         proxyData = options.body;
       }
@@ -615,6 +621,9 @@ const Workbench: React.FC<WorkbenchProps> = ({
       try {
         const apiRes = await response.json();
         const proxyRes = apiRes.responseObject;
+        console.log("proxyRes");
+        console.log(proxyRes);
+
         if (proxyRes.error) {
           responseBody = proxyRes.details || proxyRes.error;
         } else {
@@ -1804,14 +1813,20 @@ const Workbench: React.FC<WorkbenchProps> = ({
                         </div>
                       )}
                       <div className="flex-1 min-h-0 theme-bg-workbench/40 rounded-xl overflow-hidden border theme-border flex flex-col shadow-inner">
-                        <pre className="flex-1 p-5 text-xs font-mono theme-text-primary leading-relaxed overflow-auto scroll-smooth custom-scrollbar">
-                          {typeof executionResult.response.body === "object"
-                            ? JSON.stringify(
-                                executionResult.response.body,
-                                null,
-                                2,
-                              )
-                            : executionResult.response.body}
+                        <pre className="flex-1 p-5 text-xs font-mono theme-text-primary leading-relaxed overflow-auto scroll-smooth custom-scrollbar whitespace-pre-wrap break-words">
+                          {(() => {
+                            try {
+                              const parsed =
+                                typeof executionResult.response.body ===
+                                "string"
+                                  ? JSON.parse(executionResult.response.body)
+                                  : executionResult.response.body;
+
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              return executionResult.response.body;
+                            }
+                          })()}
                         </pre>
                       </div>
                     </div>
