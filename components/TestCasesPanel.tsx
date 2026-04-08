@@ -22,8 +22,6 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   project,
   generatedMTCData,
 }) => {
-  console.log("testCases");
-  console.log(testCases);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -31,9 +29,6 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     const groups: Record<string, SavedTestCase[]> = {};
 
     testCases.forEach((tc) => {
-      console.log("project.endpoints");
-      console.log(project.endpoints);
-
       const endpoint = project.endpoints.find(
         (e) => e.tags[0] === tc.controller,
       );

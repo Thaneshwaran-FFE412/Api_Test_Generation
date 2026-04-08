@@ -33,7 +33,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     null,
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
-  const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);  
+  const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);
   const [variables, setVariables] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem(`apipro_vars_${project.id}`);
     return saved ? JSON.parse(saved) : {};
@@ -537,8 +537,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             "Module Name": mod.name,
             "HTTP Method": rawRow.httpMethod.toUpperCase(),
             "Endpoint URL":
-              tc.request.url.split("/").slice(0, 3).join("/") +
-              rawRow.endPoint,
+              tc.request.url.split("/").slice(0, 3).join("/") + rawRow.endPoint,
             Headers: JSON.stringify(rawRow.headerParams || {}),
             "Query Parameters": JSON.stringify(rawRow.queryParams || {}),
             "Request Body": rawRow.payload || "",
@@ -637,6 +636,12 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     } finally {
       setIsGeneratingMTC(false);
     }
+  };
+
+  const getUrl = () => {
+    return project.baseUrl.lastIndexOf("/") === project.baseUrl.length - 1
+      ? project.baseUrl.slice(0, -1)
+      : project.baseUrl;
   };
 
   return (
@@ -748,7 +753,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             {selectedEndpoint ? (
               <Workbench
                 endpoint={selectedEndpoint}
-                baseUrl={project.baseUrl}
+                baseUrl={getUrl()}
                 variables={variables}
                 globalAuth={globalAuth}
                 spec={project.spec}

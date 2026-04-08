@@ -14,9 +14,9 @@ import {
   AppSettings,
 } from "../types";
 import AuthHeader from "./AuthHeader";
-import ConstraintModal from "./ConstraintModal";
 import VariableInput from "./VariableInput";
 import { BodyConfigModal } from "./BodyConfigModal";
+import { FormKeyEditor } from "./FormKeyEditor";
 
 interface WorkbenchProps {
   endpoint: ApiEndpoint;
@@ -187,8 +187,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
   useEffect(() => {
     if (!endpoint) return;
-    console.log("endpoint");
-    console.log(endpoint);
 
     // Reset execution only when endpoint changes
     if (currentEndpointId.current !== endpoint.id) {
@@ -292,12 +290,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
     //   body: endpoint.constraint?.body || {},
     // });
     // setConstraint(endpoint.constraint);
+    console.log("endpoint.constraint");
+    console.log(endpoint);
+    console.log(endpoint.constraint);
   }, [endpoint.id, baseUrl]); // Dependency changed to ID to be stable
-
-  // useEffect(() => {
-  //   console.log("constraint changed");
-  //   console.log(constraint);
-  // }, [constraint]);
 
   useEffect(() => {
     let path = urlPath;
@@ -886,9 +882,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
       return;
     }
 
-    console.log("constraint");
-    console.log(constraint);
-
     const endpointData = {
       method,
       url: tempUrl,
@@ -1103,13 +1096,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
                   Path Parameters
                 </h4>
                 {pathParams.length > 0 ? (
-                  <KVEditor
+                  <FormKeyEditor
+                    bodyType={bodyType}
+                    endpoint={endpoint}
                     sectionType="pathParams"
-                    setConstraint={setConstraint}
-                    constraint={constraint}
-                    isEditable={false}
-                    items={pathParams}
-                    onUpdate={setPathParams}
                     variables={variables}
                   />
                 ) : (
@@ -1122,13 +1112,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 <h4 className="text-[11px] font-black theme-text-secondary uppercase tracking-[0.2em]">
                   Query Parameters
                 </h4>
-                <KVEditor
+                <FormKeyEditor
+                  bodyType={bodyType}
+                  endpoint={endpoint}
                   sectionType="queryParams"
-                  isEditable={true}
-                  setConstraint={setConstraint}
-                  constraint={constraint}
-                  items={queryParams}
-                  onUpdate={setQueryParams}
                   variables={variables}
                 />
               </div>
@@ -1140,13 +1127,10 @@ const Workbench: React.FC<WorkbenchProps> = ({
               <h4 className="text-[11px] font-black theme-text-secondary uppercase tracking-[0.2em]">
                 Request Headers
               </h4>
-              <KVEditor
+              <FormKeyEditor
+                bodyType={bodyType}
+                endpoint={endpoint}
                 sectionType="headers"
-                isEditable={true}
-                setConstraint={setConstraint}
-                constraint={constraint}
-                items={headers}
-                onUpdate={setHeaders}
                 variables={variables}
               />
             </div>
@@ -1232,26 +1216,19 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 </div>
               )}
               {bodyType === "form-data" && (
-                <KVEditor
+                <FormKeyEditor
+                  endpoint={endpoint}
                   sectionType="body"
-                  isEditable={true}
-                  items={formData}
-                  setConstraint={setConstraint}
-                  constraint={constraint}
-                  onUpdate={setFormData}
-                  showType
                   variables={variables}
+                  bodyType={bodyType}
                 />
               )}
               {bodyType === "x-www-form-urlencoded" && (
-                <KVEditor
+                <FormKeyEditor
+                  endpoint={endpoint}
                   sectionType="body"
-                  isEditable={true}
-                  items={urlEncoded}
-                  setConstraint={setConstraint}
-                  constraint={constraint}
-                  onUpdate={setUrlEncoded}
                   variables={variables}
+                  bodyType={bodyType}
                 />
               )}
               {bodyType === "binary" && (
@@ -2054,6 +2031,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         <BodyConfigModal
           endpoint={endpoint}
           variables={variables}
+          setShowBodyConfig={setShowBodyConfig}
         />
       )}
       {isSaveModalOpen && (
@@ -2146,689 +2124,5 @@ const Workbench: React.FC<WorkbenchProps> = ({
     </div>
   );
 };
-
-interface KVEditorProps {
-  sectionType: "queryParams" | "headers" | "pathParams" | "body";
-  isEditable: boolean;
-  items: KVItem[];
-  onUpdate: (items: KVItem[]) => void;
-  showType?: boolean;
-  setConstraint: React.Dispatch<React.SetStateAction<ConstraintProp>>;
-  constraint: ConstraintProp;
-  variables: Record<string, string>;
-}
-
-const KVEditor: React.FC<KVEditorProps> = ({
-  sectionType,
-  isEditable = true,
-  items,
-  onUpdate,
-  setConstraint,
-  constraint,
-  showType,
-  variables,
-}) => {
-  const [editingConstraintId, setEditingConstraintId] = useState<string | null>(
-    null,
-  );
-
-  const addRow = () =>
-    onUpdate([
-      ...items,
-      {
-        id: Math.random().toString(),
-        key: "",
-        value: "",
-        enabled: true,
-        type: "text",
-        constraint: "",
-      },
-    ]);
-  const updateRow = (id: string, field: keyof KVItem, val: any) =>
-    onUpdate(
-      items.map((item) => (item.id === id ? { ...item, [field]: val } : item)),
-    );
-  const removeRow = (id: string) =>
-    onUpdate(items.filter((item) => item.id !== id));
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 text-[10px] font-black theme-text-secondary px-3 uppercase tracking-[0.2em] opacity-60">
-        <span></span>
-        <span>Key</span>
-        <span>Value</span>
-        <span>Constraint</span>
-        <span></span>
-      </div>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 items-center group theme-bg-surface/30 p-1.5 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all"
-          >
-            <div className="flex justify-center">
-              <input
-                type="checkbox"
-                checked={item.enabled}
-                onChange={(e) =>
-                  updateRow(item.id, "enabled", e.target.checked)
-                }
-                className="accent-indigo-500 w-4 h-4 rounded"
-              />
-            </div>
-            <input
-              className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
-              placeholder="key"
-              value={item.key}
-              onChange={(e) => {
-                updateRow(item.id, "key", e.target.value);
-              }}
-            />
-            <div className="flex gap-2 items-center">
-              {showType && (
-                <select
-                  value={item.type}
-                  onChange={(e) => updateRow(item.id, "type", e.target.value)}
-                  className="theme-bg-main border theme-border rounded-lg text-[10px] font-bold p-2 theme-text-primary outline-none shrink-0"
-                >
-                  <option value="text">TEXT</option>
-                  <option value="file">FILE</option>
-                </select>
-              )}
-              {item.options ? (
-                <select
-                  className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                  value={item.value}
-                  onChange={(e) => updateRow(item.id, "value", e.target.value)}
-                >
-                  <option value="">-- select --</option>
-                  {item.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : item.type === "file" ? (
-                <div className="flex-1 flex gap-2 items-center">
-                  <input
-                    type="file"
-                    id={`file-${item.id}`}
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        updateRow(item.id, "value", file.name);
-                        toast.success(
-                          `File "${file.name}" uploaded successfully`,
-                        );
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`file-${item.id}`}
-                    className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-secondary cursor-pointer hover:theme-accent-bg/10 transition-all truncate"
-                  >
-                    {item.value || "Select File"}
-                  </label>
-                </div>
-              ) : (
-                <VariableInput
-                  className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
-                  placeholder="value"
-                  value={item.value}
-                  variables={variables}
-                  onChange={(val) => updateRow(item.id, "value", val)}
-                />
-              )}
-            </div>
-            <input
-              className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
-              placeholder="constraint"
-              value={item.constraint || ""}
-              readOnly
-              onClick={() => setEditingConstraintId(item.id)}
-            />
-            {isEditable && (
-              <div className="flex justify-center">
-                <button
-                  onClick={() => removeRow(item.id)}
-                  className="text-rose-500 opacity-20 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-90"
-                >
-                  <i className="fas fa-trash-alt text-[11px]"></i>
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      {isEditable && (
-        <button
-          onClick={addRow}
-          className="theme-accent-text text-[10px] font-black uppercase hover:underline tracking-widest px-3 py-1 rounded-lg hover:theme-accent-bg/10 transition-all"
-        >
-          + Add Entry
-        </button>
-      )}
-      <ConstraintModal
-        isOpen={!!editingConstraintId}
-        initialValue={
-          items.find((i) => i.id === editingConstraintId)?.constraint || ""
-        }
-        onClose={() => setEditingConstraintId(null)}
-        onSave={(val) => {
-          console.log("val");
-          console.log(val);
-
-          if (editingConstraintId) {
-            const newItems = items.map((item) => {
-              if (item.id === editingConstraintId) {
-                const enumMatch = val.match(/(?:^|,\s*)enum:([^,]+)/);
-                return {
-                  ...item,
-                  constraint: val,
-                  options: enumMatch ? enumMatch[1].split("|") : undefined,
-                };
-              }
-              return item;
-            });
-            console.log("newItems");
-            console.log(newItems);
-
-            onUpdate(newItems);
-          }
-        }}
-      />
-    </div>
-  );
-};
-
-interface BodyConfigModalProps {
-  endpoint: ApiEndpoint;
-  format: RawFormat;
-  content: string;
-  variables: Record<string, string>;
-  setConstraint: React.Dispatch<React.SetStateAction<ConstraintProp>>;
-  constraint: ConstraintProp;
-  spec: any;
-  onClose: () => void;
-  onUpdate: (val: string) => void;
-  onUpdateFields?: (fields: KVItem[]) => void;
-}
-
-// const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
-//   endpoint,
-//   format,
-//   content,
-//   variables,
-//   setConstraint,
-//   constraint,
-//   spec,
-//   onClose,
-//   onUpdate,
-//   onUpdateFields,
-// }) => {
-//   console.log("constraint.body");
-//   console.log(constraint.body);
-
-//   const [localContent, setLocalContent] = useState(content);
-//   const [jsonFields, setJsonFields] = useState<KVItem[]>([]);
-//   const [editingConstraintId, setEditingConstraintId] = useState<string | null>(
-//     null,
-//   );
-
-//   useEffect(() => {
-//     if (format !== "json") return;
-
-//     try {
-//       const parsed = JSON.parse(content);
-//       console.log("parsed One");
-//       console.log(parsed);
-
-//       const fields: KVItem[] = [];
-
-//       const flatten = (obj: any, prefix = "") => {
-//         if (obj === null || obj === undefined) return;
-
-//         if (Array.isArray(obj)) {
-//           obj.forEach((item, index) => {
-//             const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
-//             flatten(item, path);
-//           });
-//         } else if (typeof obj === "object") {
-//           Object.keys(obj).forEach((key) => {
-//             const path = prefix ? `${prefix}.${key}` : key;
-//             flatten(obj[key], path);
-//           });
-//         } else {
-//           // ✅ Get constraint from backend
-//           const constraintObj = constraint.body?.[prefix];
-
-//           let constraintStr = "";
-//           let options: string[] | undefined;
-
-//           if (constraintObj) {
-//             const c: string[] = [];
-
-//             if (constraintObj.required !== undefined) {
-//               c.push(`required:${constraintObj.required}`);
-//             } else {
-//               c.push(`required:false`);
-//             }
-//             if (constraintObj.type) c.push(`type:${constraintObj.type}`);
-//             if (constraintObj.pattern)
-//               c.push(`pattern:${constraintObj.pattern}`);
-//             if (constraintObj.minLen !== undefined)
-//               c.push(`minLen:${constraintObj.minLen}`);
-//             if (constraintObj.maxLen !== undefined)
-//               c.push(`maxLen:${constraintObj.maxLen}`);
-//             if (constraintObj.min !== undefined)
-//               c.push(`min:${constraintObj.min}`);
-//             if (constraintObj.max !== undefined)
-//               c.push(`max:${constraintObj.max}`);
-
-//             if (
-//               constraintObj.enumValues &&
-//               constraintObj.enumValues.length > 0
-//             ) {
-//               options = constraintObj.enumValues;
-//               c.push(`enum:${constraintObj.enumValues.join("|")}`);
-//             }
-
-//             c.push(`mode:${constraintObj.mode || "static"}`);
-
-//             constraintStr = c.join(", ");
-//           }
-
-//           fields.push({
-//             id: Math.random().toString(),
-//             key: prefix,
-//             value: String(obj),
-//             dataType: typeof obj,
-//             enabled: true,
-//             constraint: constraintStr,
-//             options,
-//           });
-//         }
-//       };
-//       flatten(parsed);
-//       setJsonFields(fields);
-//     } catch (e) {
-//       setJsonFields([]);
-//     }
-//   }, [content, constraint.body, format]);
-
-//   const buildConstraintBody = () => {
-//     const map: Record<string, any> = {};
-//     console.log("jsonFields");
-//     console.log(jsonFields);
-
-//     jsonFields.forEach((f) => {
-//       console.log("jsonFields f event");
-//       console.log(f);
-//       const parsed = parseConstraintString(f.constraint || "");
-//       console.log("jsonFields parsed event");
-//       console.log(parsed);
-//       if (!parsed.mode) {
-//         parsed.mode = f.mode || "static";
-//       }
-
-//       map[f.key] = parsed;
-//     });
-
-//     return map;
-//   };
-
-//   const handleApply = () => {
-//     if (format === "json" && jsonFields.length > 0) {
-//       try {
-//         const parsed = JSON.parse(localContent);
-//         const updateObj = (obj: any, path: string, val: any) => {
-//           // Handle array paths like [0] or items[0]
-//           const parts = path.split(/\.|(?=\[)/);
-//           let current = obj;
-
-//           for (let i = 0; i < parts.length - 1; i++) {
-//             let part = parts[i];
-//             let isArray = false;
-//             let arrayIndex = -1;
-
-//             if (part.startsWith("[")) {
-//               isArray = true;
-//               arrayIndex = parseInt(part.substring(1, part.length - 1));
-//             }
-
-//             if (isArray) {
-//               if (!current[arrayIndex]) current[arrayIndex] = {};
-//               current = current[arrayIndex];
-//             } else {
-//               if (!current[part]) current[part] = {};
-//               current = current[part];
-//             }
-//           }
-
-//           const lastPart = parts[parts.length - 1];
-//           let finalVal = val;
-//           if (val === "true") finalVal = true;
-//           else if (val === "false") finalVal = false;
-//           else if (!isNaN(Number(val)) && val.trim() !== "")
-//             finalVal = Number(val);
-
-//           if (lastPart.startsWith("[")) {
-//             const idx = parseInt(lastPart.substring(1, lastPart.length - 1));
-//             current[idx] = finalVal;
-//           } else {
-//             current[lastPart] = finalVal;
-//           }
-//         };
-//         jsonFields.forEach((f) => {
-//           updateObj(parsed, f.key, f.value);
-//         });
-//         onUpdate(JSON.stringify(parsed, null, 2));
-//         if (onUpdateFields) onUpdateFields(jsonFields);
-//       } catch (e) {
-//         onUpdate(localContent);
-//         if (onUpdateFields) onUpdateFields(jsonFields);
-//       }
-//     } else if (format === "xml" && jsonFields.length > 0) {
-//       try {
-//         const parser = new DOMParser();
-//         const xmlDoc = parser.parseFromString(localContent, "application/xml");
-
-//         jsonFields.forEach((f) => {
-//           if (f.dataType === "attribute") {
-//             const lastDot = f.key.lastIndexOf(".");
-//             const bracketIdx = f.key.lastIndexOf("[@");
-//             const tagName =
-//               lastDot === -1
-//                 ? f.key.substring(0, bracketIdx)
-//                 : f.key.substring(lastDot + 1, bracketIdx);
-//             const attrName = f.key.substring(bracketIdx + 2, f.key.length - 1);
-//             const elements = xmlDoc.getElementsByTagName(tagName);
-//             if (elements.length > 0) {
-//               elements[0].setAttribute(attrName, f.value);
-//             }
-//           } else {
-//             const lastDot = f.key.lastIndexOf(".");
-//             const tagName =
-//               lastDot === -1 ? f.key : f.key.substring(lastDot + 1);
-//             const elements = xmlDoc.getElementsByTagName(tagName);
-//             if (elements.length > 0) {
-//               elements[0].textContent = f.value;
-//             }
-//           }
-//         });
-//         const serializer = new XMLSerializer();
-//         onUpdate(serializer.serializeToString(xmlDoc));
-//         if (onUpdateFields) onUpdateFields(jsonFields);
-//       } catch (e) {
-//         onUpdate(localContent);
-//         if (onUpdateFields) onUpdateFields(jsonFields);
-//       }
-//     } else {
-//       onUpdate(localContent);
-//       if (onUpdateFields) onUpdateFields(jsonFields);
-//     }
-//     const newBodyConstraints = buildConstraintBody();
-
-//     setConstraint((prev: any) => ({
-//       ...prev,
-//       body: newBodyConstraints,
-//     }));
-//     onClose();
-//   };
-
-//   const parseConstraintString = (str: string) => {
-//     if (!str) return {};
-
-//     const obj: any = {};
-//     const parts = str.split(",");
-
-//     parts.forEach((p) => {
-//       const [key, val] = p.split(":").map((s) => s.trim());
-
-//       if (!key) return;
-
-//       switch (key) {
-//         case "required":
-//           obj.required = val === "true";
-//           break;
-//         case "type":
-//           obj.type = val;
-//           break;
-//         case "pattern":
-//           obj.pattern = val;
-//           break;
-//         case "minLen":
-//           obj.minLen = Number(val);
-//           break;
-//         case "maxLen":
-//           obj.maxLen = Number(val);
-//           break;
-//         case "min":
-//           obj.min = Number(val);
-//           break;
-//         case "max":
-//           obj.max = Number(val);
-//           break;
-//         case "enum":
-//           obj.enumValues = val.split("|");
-//           break;
-//         case "mode":
-//           obj.mode = val;
-//           break;
-//       }
-//     });
-
-//     return obj;
-//   };
-
-//   return (
-//     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-//       <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-//         <div className="px-6 py-4 border-b theme-border flex items-center justify-between theme-accent-bg/5">
-//           <div className="flex items-center gap-3">
-//             <div className="w-8 h-8 rounded-lg theme-accent-bg flex items-center justify-center text-white shadow-lg">
-//               <i className="fas fa-code"></i>
-//             </div>
-//             <div>
-//               <h3 className="text-sm font-black theme-text-primary uppercase tracking-widest">
-//                 Configure {format.toUpperCase()} Body
-//               </h3>
-//               <p className="text-[10px] theme-text-secondary font-bold">
-//                 Map fields to static or dynamic values
-//               </p>
-//             </div>
-//           </div>
-//           <button
-//             onClick={onClose}
-//             className="w-8 h-8 rounded-full hover:bg-rose-500/10 text-rose-500 transition-all flex items-center justify-center"
-//           >
-//             <i className="fas fa-times"></i>
-//           </button>
-//         </div>
-
-//         <div className="flex-1 flex overflow-hidden">
-//           {/* Left Side: JSON/XML Viewer */}
-//           <div className="flex-1 border-r theme-border p-6 flex flex-col theme-bg-workbench/20">
-//             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
-//               <i className="fas fa-file-alt"></i>
-//               {format.toUpperCase()} Data
-//             </h4>
-//             <VariableInput
-//               type="textarea"
-//               className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-theme-accent-text/50 resize-none theme-text-primary shadow-inner"
-//               value={localContent}
-//               variables={variables}
-//               onChange={setLocalContent}
-//               placeholder={`Enter ${format.toUpperCase()} here...`}
-//             />
-//           </div>
-
-//           {/* Right Side: Field Configuration */}
-//           <div className="w-[700px] p-6 overflow-y-auto theme-bg-workbench/40">
-//             <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
-//               <i className="fas fa-tasks"></i>
-//               Field Configuration
-//             </h4>
-//             {(format === "json" || format === "xml") &&
-//             jsonFields.length > 0 ? (
-//               <div className="border theme-border rounded-xl overflow-hidden theme-bg-workbench/20">
-//                 <table className="w-full border-collapse">
-//                   <thead>
-//                     <tr className="text-left border-b theme-border theme-bg-workbench/30">
-//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-//                         Field (JSON PATH)
-//                       </th>
-//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-//                         Current Value
-//                       </th>
-//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
-//                         Constraint
-//                       </th>
-//                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest text-center">
-//                         Mode
-//                       </th>
-//                     </tr>
-//                   </thead>
-//                   <tbody className="divide-y theme-border">
-//                     {jsonFields.map((field, idx) => (
-//                       <tr
-//                         key={field.id}
-//                         className="hover:theme-bg-surface transition-colors"
-//                       >
-//                         <td className="py-4 px-4 align-top min-w-[100px]">
-//                           <div
-//                             className="text-[11px] font-bold theme-text-primary font-mono break-all theme-bg-workbench/20 p-2 rounded border theme-border"
-//                             title={field.key}
-//                           >
-//                             {field.key}
-//                           </div>
-//                         </td>
-//                         <td className="py-4 px-4 align-top min-w-[200px]">
-//                           {field.options && field.options.length > 0 ? (
-//                             <select
-//                               className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
-//                               value={field.value}
-//                               onChange={(e) => {
-//                                 const newFields = [...jsonFields];
-//                                 newFields[idx].value = e.target.value;
-//                                 setJsonFields(newFields);
-//                               }}
-//                             >
-//                               <option value="">-- Select --</option>
-//                               {field.options.map((opt) => (
-//                                 <option key={opt} value={opt}>
-//                                   {opt}
-//                                 </option>
-//                               ))}
-//                             </select>
-//                           ) : (
-//                             <VariableInput
-//                               className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-theme-accent-text/50 outline-none transition-all"
-//                               placeholder="Value"
-//                               value={field.value}
-//                               variables={variables}
-//                               onChange={(val) => {
-//                                 const newFields = [...jsonFields];
-//                                 newFields[idx].value = val;
-//                                 setJsonFields(newFields);
-//                               }}
-//                             />
-//                           )}
-//                         </td>
-//                         <td className="py-4 px-4 align-top min-w-[100px]">
-//                           <input
-//                             className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
-//                             placeholder="constraint"
-//                             value={field.constraint || ""}
-//                             readOnly
-//                             onClick={() => setEditingConstraintId(field.id)}
-//                           />
-//                         </td>
-//                         <td className="py-4 px-4 align-top text-center">
-//                           <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border w-fit mx-auto">
-//                             <button
-//                               onClick={() => {
-//                                 const newFields = [...jsonFields];
-//                                 newFields[idx].mode = "static";
-//                                 setJsonFields(newFields);
-//                               }}
-//                               className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-//                             >
-//                               Static
-//                             </button>
-//                             <button
-//                               onClick={() => {
-//                                 const newFields = [...jsonFields];
-//                                 newFields[idx].mode = "dynamic";
-//                                 setJsonFields(newFields);
-//                               }}
-//                               className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-//                             >
-//                               Dynamic
-//                             </button>
-//                           </div>
-//                         </td>
-//                       </tr>
-//                     ))}
-//                   </tbody>
-//                 </table>
-//               </div>
-//             ) : (
-//               <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-//                 <i className="fas fa-info-circle text-4xl theme-text-secondary"></i>
-//                 <p className="text-xs theme-text-secondary font-medium px-10 leading-relaxed">
-//                   {format === "json" || format === "xml"
-//                     ? `Valid ${format.toUpperCase()} required to extract fields for configuration.`
-//                     : "Field configuration is currently optimized for JSON and XML formats."}
-//                 </p>
-//               </div>
-//             )}
-//           </div>
-//         </div>
-
-//         <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/50">
-//           <button
-//             onClick={onClose}
-//             className="px-6 py-2 text-xs font-black theme-text-secondary uppercase hover:theme-text-primary transition-colors tracking-widest"
-//           >
-//             Cancel
-//           </button>
-//           <button
-//             onClick={handleApply}
-//             className="px-8 py-2 theme-accent-bg text-white rounded-lg text-xs font-black uppercase shadow-lg hover:scale-105 active:scale-95 transition-all tracking-widest"
-//           >
-//             Apply Changes
-//           </button>
-//         </div>
-//       </div>
-//       <ConstraintModal
-//         isOpen={!!editingConstraintId}
-//         initialValue={
-//           jsonFields.find((i) => i.id === editingConstraintId)?.constraint || ""
-//         }
-//         onClose={() => setEditingConstraintId(null)}
-//         onSave={(val) => {
-//           if (editingConstraintId) {
-//             const newFields = [...jsonFields];
-//             const idx = newFields.findIndex(
-//               (f) => f.id === editingConstraintId,
-//             );
-//             if (idx !== -1) {
-//               newFields[idx].constraint = val;
-//               const enumMatch = val.match(/(?:^|,\s*)enum:([^,]+)/);
-//               if (enumMatch) {
-//                 newFields[idx].options = enumMatch[1].split("|");
-//               } else {
-//                 newFields[idx].options = undefined;
-//               }
-//               setJsonFields(newFields);
-//             }
-//           }
-//         }}
-//       />
-//     </div>
-//   );
-// };
 
 export default Workbench;

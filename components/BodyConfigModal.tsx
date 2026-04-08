@@ -1,36 +1,100 @@
 import { ApiEndpoint, KVItem, RawFormat } from "@/types";
 import { ConstraintProp } from "./Workbench";
 import VariableInput from "./VariableInput";
-import ConstraintModal from "./ConstraintModal";
 import { useEffect, useState } from "react";
+import ConstraintPopup from "./ConstraintPopup";
 
 interface BodyConfigModalProps {
   endpoint: ApiEndpoint;
   variables: Record<string, string>;
+  setShowBodyConfig: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export interface fieldItem {
+  key: string;
+  value: string;
+  enabled: boolean;
+  type?: "text" | "file";
+  description?: string;
+  options?: string[];
+  dataType?: string;
 }
 
 export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
   endpoint,
   variables,
+  setShowBodyConfig,
 }) => {
-  console.log("all Propos");
-  console.log({
-    endpoint,
-    variables,
-  });
-  const [jsonFields, setJsonFields] = useState<KVItem[]>([]);
+  const [jsonFields, setJsonFields] = useState<fieldItem[]>([]);
   const [format, setFormat] = useState<RawFormat>("json");
+  const [localContent, setLocalContent] = useState("");
+  const [constraintModal, setConstraintModal] = useState({
+    fieldKey: "",
+    isOpen: false,
+  });
 
   const handleApply = () => {
     console.log("On Applying Changes");
+    setShowBodyConfig(false);
   };
+
   useEffect(() => {
-    console.log(endpoint);
-    if (endpoint.requestBody) {
-      const content = endpoint.requestBody.content;
+    if (!endpoint?.requestBody?.body) return;
+
+    const raw = endpoint.requestBody.body;
+
+    let jsonStr = "";
+    if (typeof raw === "object") {
+      jsonStr = JSON.stringify(raw, null, 2);
+    } else {
+      jsonStr = raw;
     }
-  }, [])
-  
+
+    setLocalContent(jsonStr);
+    setFormat(endpoint.requestBody.rawFormat || "json");
+
+    try {
+      const parsed = typeof raw === "object" ? raw : JSON.parse(raw);
+
+      const fields: fieldItem[] = [];
+
+      const flatten = (obj: any, prefix = "") => {
+        if (obj === null || obj === undefined) return;
+        if (Array.isArray(obj)) {
+          obj.forEach((item, index) => {
+            const path = prefix ? `${prefix}[${index}]` : `[${index}]`;
+            flatten(item, path);
+          });
+        } else if (typeof obj === "object") {
+          Object.keys(obj).forEach((key) => {
+            const path = prefix ? `${prefix}.${key}` : key;
+            flatten(obj[key], path);
+          });
+        } else {
+          fields.push({
+            key: prefix,
+            value: String(obj),
+            enabled: true,
+            dataType: typeof obj,
+          });
+        }
+      };
+
+      flatten(parsed);
+      setJsonFields(fields);
+    } catch (e) {
+      setJsonFields([]);
+    }
+  }, [endpoint]);
+
+  const getField = (field: string) => {
+    const obj = endpoint.constraint?.body?.[field];
+    if (!obj) return "";
+    return Object.entries(obj)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(", ");
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="theme-bg-surface border theme-border rounded-2xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -49,7 +113,8 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
             </div>
           </div>
           <button
-            onClick={()=>{console.log("On click of cancel");
+            onClick={() => {
+              setShowBodyConfig(false);
             }}
             className="w-8 h-8 rounded-full hover:bg-rose-500/10 text-rose-500 transition-all flex items-center justify-center"
           >
@@ -67,7 +132,7 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
             <VariableInput
               type="textarea"
               className="w-full theme-bg-main border theme-border rounded-xl p-4 font-mono text-xs leading-relaxed focus:ring-2 focus:outline-none focus:ring-theme-accent-text/50 resize-none theme-text-primary shadow-inner"
-              value={"localContent"} // need to remove
+              value={localContent} // need to remove
               variables={variables}
               onChange={() => {
                 console.log("Text Area Detected");
@@ -97,15 +162,12 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                       <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest">
                         Constraint
                       </th>
-                      <th className="py-3 px-4 text-[9px] font-black theme-text-secondary uppercase tracking-widest text-center">
-                        Mode
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y theme-border">
                     {jsonFields.map((field, idx) => (
                       <tr
-                        key={field.id}
+                        key={field.key}
                         className="hover:theme-bg-surface transition-colors"
                       >
                         <td className="py-4 px-4 align-top min-w-[100px]">
@@ -152,36 +214,16 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                           <input
                             className="w-full theme-bg-main border theme-border rounded-lg px-3 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
                             placeholder="constraint"
-                            value={field.constraint || ""}
+                            value={getField(field.key)}
                             readOnly
                             onClick={() => {
+                              setConstraintModal({
+                                fieldKey: field.key,
+                                isOpen: true,
+                              });
                               console.log("Setting ID");
                             }}
                           />
-                        </td>
-                        <td className="py-4 px-4 align-top text-center">
-                          <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border w-fit mx-auto">
-                            <button
-                              onClick={() => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].mode = "static";
-                                setJsonFields(newFields);
-                              }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${!field.mode || field.mode === "static" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                            >
-                              Static
-                            </button>
-                            <button
-                              onClick={() => {
-                                const newFields = [...jsonFields];
-                                newFields[idx].mode = "dynamic";
-                                setJsonFields(newFields);
-                              }}
-                              className={`px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all ${field.mode === "dynamic" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
-                            >
-                              Dynamic
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     ))}
@@ -204,7 +246,7 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
         <div className="px-6 py-4 border-t theme-border flex items-center justify-end gap-3 theme-bg-workbench/50">
           <button
             onClick={() => {
-              console.log("On click Cancel");
+              setShowBodyConfig(false);
             }}
             className="px-6 py-2 text-xs font-black theme-text-secondary uppercase hover:theme-text-primary transition-colors tracking-widest"
           >
@@ -218,15 +260,19 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
           </button>
         </div>
       </div>
-      <ConstraintModal
-        isOpen={false}
-        initialValue={""}
+      <ConstraintPopup
+        isOpen={constraintModal.isOpen}
+        initialValue={endpoint.constraint.body[constraintModal.fieldKey]}
         onClose={() => {
           console.log("Closing Constraint Modal");
+          setConstraintModal({ fieldKey: "", isOpen: false });
         }}
         onSave={(val) => {
-          console.log("value from constraint modal");
-          console.log(val);
+          const updated = { ...endpoint.constraint };
+          if (!updated.body) updated.body = {};
+          updated.body[constraintModal.fieldKey] = val;
+          setConstraintModal({ fieldKey: "", isOpen: false });
+          endpoint.constraint = updated;
         }}
       />
     </div>
