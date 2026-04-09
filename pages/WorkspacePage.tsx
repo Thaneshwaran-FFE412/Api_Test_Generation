@@ -25,6 +25,12 @@ import { BASE_URL } from "./LandingPage";
 interface WorkspacePageProps {
   project: SwaggerProject;
 }
+export interface VariableProp {
+  name: string;
+  value: string;
+  projectId?: string;
+  id: string;
+}
 
 type WorkspaceTab = "saved" | "workbench" | "variables" | "execution";
 
@@ -34,10 +40,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
   const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);
-  const [variables, setVariables] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem(`apipro_vars_${project.id}`);
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [variables, setVariables] = useState<Record<string, string>>({});
+  const [variableList, setVariableList] = useState<VariableProp[]>([]);
 
   const [globalAuth, setGlobalAuth] = useState<GlobalAuth>(() => {
     const saved = localStorage.getItem(`apipro_auth_${project.id}`);
@@ -56,24 +60,39 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     Record<string, { rows: any[]; rawRows: any[] }>
   >({});
 
-  useEffect(() => {
-    localStorage.setItem(
-      `apipro_vars_${project.id}`,
-      JSON.stringify(variables),
-    );
-  }, [variables, project.id]);
+  const buildVariableMap = (
+    variables: VariableProp[],
+  ): Record<string, string> => {
+    const map: Record<string, string> = {};
+
+    variables.forEach((v) => {
+      if (v.name && v.value) {
+        map[v.name] = v.value;
+      }
+    });
+
+    return map;
+  };
+
+  const fetchVariable = async (projectId: string) => {
+    const variableData: any = await fetch(`${BASE_URL}/variable/all`, {
+      method: "GET",
+      headers: { projectId },
+    });
+    const response = await variableData.json();
+
+    if (response.responseCode === 200) {
+      setVariables(buildVariableMap(response.responseObject));
+      setVariableList(response.responseObject);
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem(
-      `apipro_auth_${project.id}`,
-      JSON.stringify(globalAuth),
-    );
-  }, [globalAuth, project.id]);
-
-  useEffect(() => {
-    // Auto-select first endpoint if none selected, but don't switch tab automatically
     if (project.endpoints.length > 0 && !selectedEndpoint) {
       setSelectedEndpoint(project.endpoints[0]);
+      fetchVariable(project.id);
     }
   }, [project, selectedEndpoint]);
 
@@ -82,19 +101,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   }, []);
 
   const getEndpointList = async () => {
-    const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
-      method: "GET",
-    });
-    const response = await data.json();
-
-    if (response.responseCode === 200) {
-      setTestCases(response.responseObject);
-    } else {
-      console.error("Failed to fetch saved scenarios");
-    }
-  };
-
-  const getAllEndpoint = async () => {
     const data: any = await fetch(`${BASE_URL}/endpoint/all`, {
       method: "GET",
     });
@@ -158,8 +164,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     setActiveTab("workbench");
   };
 
-  const handleUpdateVariables = (newVars: Record<string, string>) => {
-    setVariables((prev) => ({ ...prev, ...newVars }));
+  const handleUpdateVariables = () => {
+    fetchVariable(project.id);
   };
 
   const handleDeleteTestCases = (ids: string[]) => {};
@@ -780,7 +786,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "variables" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
           >
             <VariablesPanel
-              variables={variables}
+              variables={variableList}
               onVariablesChange={handleUpdateVariables}
             />
           </div>

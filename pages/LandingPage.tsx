@@ -15,56 +15,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const parseSpec = (spec: any): ApiEndpoint[] => {
-    const endpoints: ApiEndpoint[] = [];
-    const paths = spec.paths || {};
-    const globalSecurity = spec.security || [];
-
-    Object.keys(paths).forEach((path) => {
-      Object.keys(paths[path]).forEach((method) => {
-        const details = paths[path][method];
-        endpoints.push({
-          id: Math.random().toString(36).substr(2, 9),
-          method,
-          path,
-          summary:
-            details.summary ||
-            details.description ||
-            `${method.toUpperCase()} ${path}`,
-          tags: details.tags,
-          parameters: details.parameters,
-          requestBody: details.requestBody,
-          responses: details.responses,
-          security: details.security || globalSecurity,
-          constraint: {
-            headers: {},
-            queryParams: {},
-            pathParams: {},
-            body: {},
-          },
-        });
-      });
-    });
-    return endpoints;
-  };
-
-  const getBaseUrl = (spec: any): string => {
-    if (spec.servers && spec.servers.length > 0) {
-      return spec.servers[0].url.replace(/\/$/, "");
-    }
-    const host = spec.host || "";
-    const basePath = spec.basePath || "";
-    const schemes = spec.schemes || ["http"];
-    if (host.length === 0) {
-      return "";
-    }
-    if (host.includes("http")) {
-      return host;
-    } else {
-      return `${schemes[0]}://${host}${basePath}`.replace(/\/$/, "");
-    }
-  };
-
   const handleImportUrl = async () => {
     if (!url) return;
     setIsLoading(true);

@@ -27,7 +27,7 @@ interface WorkbenchProps {
   spec: any;
   savedTestCases: SavedTestCase[];
   setGlobalAuth: any;
-  onVariablesChange: (newVars: Record<string, string>) => void;
+  onVariablesChange: () => void;
   getEndpointList: () => Promise<void>;
 }
 
@@ -391,21 +391,21 @@ const Workbench: React.FC<WorkbenchProps> = ({
             get: (key: string) => currentVariables[key],
             set: (key: string, value: any) => {
               currentVariables[key] = String(value);
-              onVariablesChange({ [key]: String(value) });
+              // Need to Updated Variable Here
             },
           },
           environment: {
             get: (key: string) => currentVariables[key],
             set: (key: string, value: any) => {
               currentVariables[key] = String(value);
-              onVariablesChange({ [key]: String(value) });
+              // Need to Updated Variable Here
             },
           },
           globals: {
             get: (key: string) => currentVariables[key],
             set: (key: string, value: any) => {
               currentVariables[key] = String(value);
-              onVariablesChange({ [key]: String(value) });
+              // Need to Updated Variable Here
             },
           },
         };
@@ -634,21 +634,21 @@ const Workbench: React.FC<WorkbenchProps> = ({
               get: (key: string) => currentVariables[key],
               set: (key: string, value: any) => {
                 currentVariables[key] = String(value);
-                onVariablesChange({ [key]: String(value) });
+                // Need to updated the Data
               },
             },
             environment: {
               get: (key: string) => currentVariables[key],
               set: (key: string, value: any) => {
                 currentVariables[key] = String(value);
-                onVariablesChange({ [key]: String(value) });
+                // Need to updated the Data
               },
             },
             globals: {
               get: (key: string) => currentVariables[key],
               set: (key: string, value: any) => {
                 currentVariables[key] = String(value);
-                onVariablesChange({ [key]: String(value) });
+                // Need to updated the Data
               },
             },
           };
@@ -714,7 +714,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
           }
         });
         if (Object.keys(newVars).length > 0) {
-          onVariablesChange(newVars);
+          onVariablesChange();
           currentVariables = { ...currentVariables, ...newVars };
         }
       }

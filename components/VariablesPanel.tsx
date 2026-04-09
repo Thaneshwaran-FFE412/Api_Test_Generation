@@ -1,8 +1,11 @@
+import { BASE_URL } from "@/pages/LandingPage";
+import { VariableProp } from "@/pages/WorkspacePage";
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 
 interface VariablesPanelProps {
-  variables: Record<string, string>;
-  onVariablesChange: (vars: Record<string, string>) => void;
+  variables: VariableProp[];
+  onVariablesChange: () => void;
 }
 
 const VariablesPanel: React.FC<VariablesPanelProps> = ({
@@ -11,24 +14,119 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
 }) => {
   const [newVarKey, setNewVarKey] = useState("");
   const [newVarValue, setNewVarValue] = useState("");
-  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [localValues, setLocalValues] = useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    const map: Record<string, string> = {};
+    variables.forEach((v) => {
+      map[v.id] = v.value;
+    });
+    setLocalValues(map);
+  }, [variables]);
+
+  const createVariable = async (variable: any) => {
+    try {
+      const res = await fetch(`${BASE_URL}/variable/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          projectId: variable.projectId ?? "",
+        },
+        body: JSON.stringify(variable),
+      });
+
+      let response;
+
+      try {
+        response = await res.json();
+      } catch {
+        response = { message: "Invalid JSON response from server" };
+      }
+
+      console.log("response:", response);
+
+      if (!res.ok) {
+        toast.error(response.message || "Server error");
+        return;
+      }
+
+      if (response.responseCode === 200) {
+        toast.success(response.message);
+        onVariablesChange();
+      } else {
+        toast.error(response.message || "Failed to create variable");
+      }
+    } catch (err: any) {
+      console.error("Network / API error:", err);
+      toast.error(err.message || "Network error");
+    }
+  };
+
+  const editVariable = async (variable: VariableProp) => {
+    try {
+      const res = await fetch(
+        `${BASE_URL}/variable/editVariable/${variable.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            projectId: variable.projectId ?? "",
+          },
+          body: JSON.stringify(variable),
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      const response = await res.json();
+
+      if (response.responseCode === 200) {
+        onVariablesChange();
+      } else {
+        console.error("Failed to create variable", response);
+      }
+    } catch (err) {
+      console.error("Network / API error:", err);
+    }
+  };
+
+  const deleteVariable = async (variableId: string) => {
+    try {
+      const res = await fetch(`${BASE_URL}/variable/delete/${variableId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      const response = await res.json();
+
+      if (response.responseCode === 200) {
+        onVariablesChange();
+      } else {
+        console.error("Failed to Delete variable", response);
+      }
+    } catch (err) {
+      console.error("Network / API error:", err);
+    }
+  };
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVarKey.trim()) return;
-    onVariablesChange({ ...variables, [newVarKey.trim()]: newVarValue });
+    createVariable({ name: newVarKey.trim(), value: newVarValue });
     setNewVarKey("");
     setNewVarValue("");
   };
 
-  const handleDelete = (key: string) => {
-    const newVars = { ...variables };
-    delete newVars[key];
-    onVariablesChange(newVars);
-  };
-
-  const handleUpdate = (oldKey: string, newValue: string) => {
-    onVariablesChange({ ...variables, [oldKey]: newValue });
+  const handleUpdate = (id: string, value: string) => {
+    setLocalValues((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
   };
 
   return (
@@ -72,7 +170,7 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {Object.keys(variables).length === 0 ? (
+        {variables.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-30 grayscale">
             <div className="w-12 h-12 theme-bg-main border-2 theme-border rounded-xl flex items-center justify-center mb-4 shadow-xl rotate-3">
               <i className="fas fa-code text-xl theme-accent-text"></i>
@@ -89,35 +187,44 @@ const VariablesPanel: React.FC<VariablesPanelProps> = ({
               <span></span>
             </div>
             <div className="space-y-1">
-              {Object.entries(variables).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="grid grid-cols-[1fr_1fr_40px] gap-4 items-center theme-bg-surface/30 p-2 rounded-xl border border-transparent hover:border-[#71347B]/30 transition-all group"
-                >
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] font-bold text-[#71347B] font-mono truncate">
-                      ${key}
-                    </span>
-                    <span className="text-[8px] theme-text-secondary font-mono opacity-50 truncate">
-                      {"{{" + key + "}}"}
-                    </span>
+              {variables &&
+                variables.map((v) => (
+                  <div
+                    key={v.id}
+                    className="grid grid-cols-[1fr_1fr_40px] gap-4 items-center theme-bg-surface/30 p-2 rounded-xl border border-transparent hover:border-[#71347B]/30 transition-all group"
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-bold text-[#71347B] font-mono truncate">
+                        ${v.name}
+                      </span>
+                      <span className="text-[8px] theme-text-secondary font-mono opacity-50 truncate">
+                        {"{{" + v.name + "}}"}
+                      </span>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={localValues[v.id] ?? ""}
+                      onChange={(e) => handleUpdate(v.id, e.target.value)}
+                      onBlur={(e) => {
+                        const newValue = e.target.value;
+
+                        if (newValue !== v.value) {
+                          editVariable({ ...v, value: newValue });
+                        }
+                      }}
+                      className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-[#71347B]/50 outline-none transition-all"
+                    />
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => deleteVariable(v.id)}
+                        className="text-rose-500 opacity-20 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-90"
+                      >
+                        <i className="fas fa-trash-alt text-[11px]"></i>
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => handleUpdate(key, e.target.value)}
-                    className="theme-bg-main border theme-border rounded-lg px-3 py-1.5 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-[#71347B]/50 outline-none transition-all"
-                  />
-                  <div className="flex justify-center">
-                    <button
-                      onClick={() => handleDelete(key)}
-                      className="text-rose-500 opacity-20 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-90"
-                    >
-                      <i className="fas fa-trash-alt text-[11px]"></i>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
