@@ -330,21 +330,20 @@ const Workbench: React.FC<WorkbenchProps> = ({
 
     const pathParams = endpoint?.requestBody?.pathParams;
     const queryParams = endpoint?.requestBody?.queryParams;
-
     const subVariable = variables;
 
     if (pathParams && pathParams.length > 0) {
       const paramMap: Record<string, string> = {};
 
       pathParams.forEach((p: any) => {
-        if (p.key && p.value) {
+        if (p.key && p.value && p.enabled) {
           let value = p.value;
-
           if (typeof value === "string" && value.includes("${")) {
             value = resolveVariable(value, subVariable);
           }
-
           paramMap[p.key] = value;
+        } else {
+          paramMap[p.key] = "";
         }
       });
 
@@ -360,7 +359,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
       const existingParams = new URLSearchParams(urlParts[1] || "");
 
       queryParams.forEach((q: any) => {
-        if (q.enabled && q.key) {
+        if (q.enabled && q.key && q.enabled) {
           let value = q.value ?? "";
 
           if (typeof value === "string" && value.includes("${")) {

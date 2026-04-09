@@ -161,6 +161,7 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
             <input
               className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
               placeholder="key"
+              disabled={!isEditable}
               value={item.key}
               onChange={(e) => {
                 updateRow(item.id, "key", e.target.value);
