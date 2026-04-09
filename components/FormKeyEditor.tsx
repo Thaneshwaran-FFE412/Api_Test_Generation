@@ -3,6 +3,7 @@ import { ConstraintProp } from "./Workbench";
 import toast from "react-hot-toast";
 import ConstraintPopup from "./ConstraintPopup";
 import VariableInput from "./VariableInput";
+import { ApiEndpoint } from "@/types";
 
 export interface KVItem {
   id: string;
@@ -20,12 +21,14 @@ type SectionTypeProp = "queryParams" | "headers" | "pathParams" | "body";
 interface KVEditorProps {
   endpoint: any;
   sectionType: SectionTypeProp;
+  setSelectedEndpoint: React.Dispatch<React.SetStateAction<ApiEndpoint | null>>;
   variables: Record<string, string>;
   bodyType: "raw" | "form-data" | "x-www-form-urlencoded" | "binary" | "none";
 }
 
 export const FormKeyEditor: React.FC<KVEditorProps> = ({
   endpoint,
+  setSelectedEndpoint,
   bodyType,
   sectionType,
   variables,
@@ -41,9 +44,6 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
 
   useEffect(() => {
     const req = endpoint.requestBody;
-    console.log("UseEffect req");
-    console.log(req);
-
     if (sectionType === "body") {
       if (Array.isArray(req?.body)) {
         setItems(
@@ -122,8 +122,10 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
     } else {
       updatedRequestBody[sectionType] = updatedItems;
     }
-
-    endpoint.requestBody = updatedRequestBody;
+    setSelectedEndpoint(() => ({
+      ...endpoint,
+      requestBody: updatedRequestBody,
+    }));
   };
 
   const removeRow = (id: string) => {
@@ -150,9 +152,9 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
               <input
                 type="checkbox"
                 checked={item.enabled}
-                onChange={(e) =>
-                  updateRow(item.id, "enabled", e.target.checked)
-                }
+                onChange={(e) => {
+                  updateRow(item.id, "enabled", e.target.checked);
+                }}
                 className="accent-indigo-500 w-4 h-4 rounded"
               />
             </div>
@@ -257,7 +259,6 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
           endpoint?.constraint?.[sectionType]?.[editingConstraint.fieldKey]
         }
         onClose={() => {
-          console.log("Closing Constraint Modal");
           setEditingConstraint({ fieldKey: "", isOpen: false });
         }}
         onSave={(val) => {
@@ -266,8 +267,7 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
             updated[sectionType] = {};
           }
           updated[sectionType][editingConstraint.fieldKey] = val;
-          // ⚠️ trigger update properly (see next issue)
-          endpoint.constraint = updated;
+          setSelectedEndpoint(() => ({ ...endpoint, constraint: updated }));
         }}
       />
     </div>

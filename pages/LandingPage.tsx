@@ -10,7 +10,7 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
-  const [url, setUrl] = useState("http://49.249.28.218:8098/v2/api-docs");
+  const [url, setUrl] = useState("https://petstore.swagger.io/v2/swagger.json");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -27,7 +27,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
           id: Math.random().toString(36).substr(2, 9),
           method,
           path,
-          summary: details.summary ||
+          summary:
+            details.summary ||
             details.description ||
             `${method.toUpperCase()} ${path}`,
           tags: details.tags,
@@ -39,8 +40,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ addProject }) => {
             headers: {},
             queryParams: {},
             pathParams: {},
-            body: {}
-          }
+            body: {},
+          },
         });
       });
     });

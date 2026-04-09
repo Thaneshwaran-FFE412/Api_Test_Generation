@@ -6,6 +6,7 @@ import ConstraintPopup from "./ConstraintPopup";
 
 interface BodyConfigModalProps {
   endpoint: ApiEndpoint;
+  setSelectedEndpoint: React.Dispatch<React.SetStateAction<ApiEndpoint | null>>;
   variables: Record<string, string>;
   setShowBodyConfig: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -22,6 +23,7 @@ export interface fieldItem {
 
 export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
   endpoint,
+  setSelectedEndpoint,
   variables,
   setShowBodyConfig,
 }) => {
@@ -34,7 +36,6 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
   });
 
   const handleApply = () => {
-    console.log("On Applying Changes");
     setShowBodyConfig(false);
   };
 
@@ -221,7 +222,6 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                                 fieldKey: field.key,
                                 isOpen: true,
                               });
-                              console.log("Setting ID");
                             }}
                           />
                         </td>
@@ -264,7 +264,6 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
         isOpen={constraintModal.isOpen}
         initialValue={endpoint.constraint.body[constraintModal.fieldKey]}
         onClose={() => {
-          console.log("Closing Constraint Modal");
           setConstraintModal({ fieldKey: "", isOpen: false });
         }}
         onSave={(val) => {
@@ -272,7 +271,7 @@ export const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
           if (!updated.body) updated.body = {};
           updated.body[constraintModal.fieldKey] = val;
           setConstraintModal({ fieldKey: "", isOpen: false });
-          endpoint.constraint = updated;
+          setSelectedEndpoint({ ...endpoint, constraint: updated });
         }}
       />
     </div>

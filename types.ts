@@ -10,7 +10,6 @@ export type BodyType =
   | "x-www-form-urlencoded"
   | "binary";
 export type RawFormat = "json" | "xml" | "text" | "javascript" | "html";
-
 export interface KVItem {
   id: string;
   key: string;
@@ -69,6 +68,20 @@ export interface Capture {
   variableName: string;
 }
 
+export interface EndpointResponse {
+  auth?: any;
+  body?: any;
+  bodyType?: any;
+  formData?: any;
+  headers?: any;
+  method?: string;
+  pathParams?: KVItem[];
+  queryParams?: KVItem[];
+  rawFormat?: any;
+  url?: string;
+  urlEncoded?: any;
+}
+
 export interface ApiEndpoint {
   id: string;
   method: string;
@@ -76,7 +89,7 @@ export interface ApiEndpoint {
   summary: string;
   tags: string[];
   parameters?: any[];
-  requestBody?: any;
+  requestBody?: EndpointResponse;
   responses?: any;
   name?: string;
   constraint: ConstraintType;

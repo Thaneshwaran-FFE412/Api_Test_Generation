@@ -753,6 +753,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             {selectedEndpoint ? (
               <Workbench
                 endpoint={selectedEndpoint}
+                setSelectedEndpoint={setSelectedEndpoint}
                 baseUrl={getUrl()}
                 variables={variables}
                 globalAuth={globalAuth}

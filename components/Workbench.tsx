@@ -20,6 +20,7 @@ import { FormKeyEditor } from "./FormKeyEditor";
 
 interface WorkbenchProps {
   endpoint: ApiEndpoint;
+  setSelectedEndpoint: React.Dispatch<React.SetStateAction<ApiEndpoint | null>>;
   baseUrl: string;
   variables: Record<string, string>;
   globalAuth: GlobalAuth;
@@ -54,7 +55,6 @@ const substituteVariables = (
   vars: Record<string, string>,
 ): string => {
   if (typeof str !== "string") return str;
-  // Support both {{key}} and $key
   let result = str.replace(/\{\{(.+?)\}\}/g, (_, key) => {
     if (vars[key] !== undefined) return vars[key];
     if (vars["$" + key] !== undefined) return vars["$" + key];
@@ -82,23 +82,14 @@ const Workbench: React.FC<WorkbenchProps> = ({
   savedTestCases,
   setGlobalAuth,
   onVariablesChange,
+  setSelectedEndpoint,
   getEndpointList,
 }) => {
   const [requestName, setRequestName] = useState(
     endpoint.summary || endpoint.path,
   );
   const [method, setMethod] = useState(endpoint.method.toUpperCase());
-  const [tempUrl, setTempUrl] = useState("");
-  const [urlPath, setUrlPath] = useState(endpoint.path);
-
-  const [constraint, setConstraint] = useState<ConstraintProp>({
-    headers: {},
-    queryParams: {},
-    pathParams: {},
-    body: {},
-  });
-  const [queryParams, setQueryParams] = useState<KVItem[]>([]);
-  const [pathParams, setPathParams] = useState<KVItem[]>([]);
+  const [tempUrl, setTempUrl] = useState(baseUrl + endpoint.path);
   const [headers, setHeaders] = useState<KVItem[]>([]);
   const [bodyType, setBodyType] = useState<BodyType>("none");
   const [rawFormat, setRawFormat] = useState<RawFormat>("json");
@@ -182,48 +173,21 @@ const Workbench: React.FC<WorkbenchProps> = ({
   const [binaryFile, setBinaryFile] = useState<string>("");
   const [dependentOnId, setDependentOnId] = useState("");
 
-  // Use a ref to track the current endpoint ID to prevent clearing results on every render
   const currentEndpointId = useRef(endpoint.id);
 
   useEffect(() => {
     if (!endpoint) return;
-
-    // Reset execution only when endpoint changes
     if (currentEndpointId.current !== endpoint.id) {
       setExecutionResult(null);
       setHasRunRequest(false);
       currentEndpointId.current = endpoint.id;
     }
 
-    const req = endpoint.requestBody; // ✅ FROM BACKEND
+    const req = endpoint.requestBody;
 
     setRequestName(endpoint.summary || endpoint.path);
-    setUrlPath(endpoint.path);
     setMethod(endpoint.method.toUpperCase());
 
-    // ✅ Query Params
-    setQueryParams(
-      (req?.queryParams || []).map((p: any) => ({
-        id: endpoint.id,
-        key: p.key,
-        value: p.value ?? "",
-        enabled: p.enabled ?? true,
-        description: "",
-      })),
-    );
-
-    // ✅ Path Params
-    setPathParams(
-      (req?.pathParams || []).map((p: any) => ({
-        id: endpoint.id,
-        key: p.key,
-        value: p.value ?? "",
-        enabled: p.enabled ?? true,
-        description: "",
-      })),
-    );
-
-    // ✅ Headers
     setHeaders(
       (req?.headers || []).map((h: any) => ({
         id: endpoint.id,
@@ -234,7 +198,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
       })),
     );
 
-    // ✅ Body Handling (SUPER SIMPLE NOW)
     setBodyType(req?.bodyType || "none");
     setRawFormat(req?.rawFormat || "json");
 
@@ -269,7 +232,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
       })),
     );
 
-    // ✅ Default assertion
     const defaultStatusCode =
       endpoint.method.toUpperCase() === "POST" ? "201" : "200";
 
@@ -281,91 +243,8 @@ const Workbench: React.FC<WorkbenchProps> = ({
         expected: defaultStatusCode,
       },
     ]);
-
-    // ✅ Constraints (still useful)
-    // setConstraint({
-    //   headers: endpoint.constraint?.headers || {},
-    //   queryParams: endpoint.constraint?.queryParams || {},
-    //   pathParams: endpoint.constraint?.pathParams || {},
-    //   body: endpoint.constraint?.body || {},
-    // });
-    // setConstraint(endpoint.constraint);
-    console.log("endpoint.constraint");
-    console.log(endpoint);
-    console.log(endpoint.constraint);
-  }, [endpoint.id, baseUrl]); // Dependency changed to ID to be stable
-
-  useEffect(() => {
-    let path = urlPath;
-
-    pathParams.forEach((p) => {
-      if (p.enabled && p.key) {
-        const val = p.value; // Do not substitute for display
-        if (val) {
-          path = path.replace(new RegExp(`\\{${p.key}\\}`, "g"), val);
-          path = path.replace(new RegExp(`:${p.key}`, "g"), val);
-        }
-      }
-    });
-
-    let url = `${baseUrl}${path}`;
-    const enabledParams = queryParams.filter((p) => p.enabled && p.key);
-    if (enabledParams.length > 0) {
-      const qs = enabledParams
-        .map((p) => {
-          const val = p.value; // Do not substitute for display
-          return `${encodeURIComponent(p.key)}=${encodeURIComponent(val)}`;
-        })
-        .join("&");
-      url += (url.includes("?") ? "&" : "?") + qs;
-    }
-
-    setTempUrl(url);
-  }, [endpoint.id, baseUrl, queryParams, pathParams, urlPath]);
-
-  // useEffect(() => {
-  //   const allValues = [
-  //     ...queryParams.map((p) => p.value),
-  //     ...pathParams.map((p) => p.value),
-  //     ...headers.map((p) => p.value),
-  //     bodyContent,
-  //     preRequestScript,
-  //     postResponseScript,
-  //   ].join(" ");
-
-  //   const curlyMatches = [...allValues.matchAll(/\{\{(.+?)\}\}/g)].map(
-  //     (m) => m[1],
-  //   );
-  //   const dollarMatches = [...allValues.matchAll(/\$([a-zA-Z0-9_]+)/g)].map(
-  //     (m) => m[1],
-  //   );
-  //   const dollarBraceMatches = [
-  //     ...allValues.matchAll(/\$\{([a-zA-Z0-9_]+)\}/g),
-  //   ].map((m) => m[1]);
-  //   const foundKeys = Array.from(
-  //     new Set([...curlyMatches, ...dollarMatches, ...dollarBraceMatches]),
-  //   );
-
-  //   let changed = false;
-  //   const newVars = { ...variables };
-  //   foundKeys.forEach((key) => {
-  //     if (newVars[key] === undefined) {
-  //       newVars[key] = "";
-  //       changed = true;
-  //     }
-  //   });
-
-  //   if (changed) {
-  //     onVariablesChange(newVars);
-  //   }
-  // }, [
-  //   queryParams,
-  //   pathParams,
-  //   headers,
-  //   bodyContent,
-  //   variables,
-  //   onVariablesChange,
-  // ]);
+    setTempUrl(baseUrl + endpoint.path);
+  }, [endpoint.id, baseUrl]);
 
   const evaluateAssertions = (res: any, assertions: Assertion[]): any[] => {
     return assertions.map((a) => {
@@ -437,6 +316,68 @@ const Workbench: React.FC<WorkbenchProps> = ({
     });
   };
 
+  const resolveVariable = (
+    value: string,
+    variables: Record<string, string>,
+  ): string => {
+    return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
+      return variables[key] ?? `\${${key}}`;
+    });
+  };
+
+  const substituteParam = (endpoint: ApiEndpoint): string => {
+    let finalUrl = tempUrl;
+
+    const pathParams = endpoint?.requestBody?.pathParams;
+    const queryParams = endpoint?.requestBody?.queryParams;
+
+    const subVariable = variables;
+
+    if (pathParams && pathParams.length > 0) {
+      const paramMap: Record<string, string> = {};
+
+      pathParams.forEach((p: any) => {
+        if (p.key && p.value) {
+          let value = p.value;
+
+          if (typeof value === "string" && value.includes("${")) {
+            value = resolveVariable(value, subVariable);
+          }
+
+          paramMap[p.key] = value;
+        }
+      });
+
+      finalUrl = finalUrl.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => {
+        return paramMap[key] ?? `{${key}}`;
+      });
+    }
+
+    if (queryParams && queryParams.length > 0) {
+      const urlParts = finalUrl.split("?");
+      const base = urlParts[0];
+
+      const existingParams = new URLSearchParams(urlParts[1] || "");
+
+      queryParams.forEach((q: any) => {
+        if (q.enabled && q.key) {
+          let value = q.value ?? "";
+
+          if (typeof value === "string" && value.includes("${")) {
+            value = resolveVariable(value, subVariable);
+          }
+
+          existingParams.set(q.key, value);
+        }
+      });
+
+      const queryString = existingParams.toString();
+      finalUrl = queryString ? `${base}?${queryString}` : base;
+    }
+
+    return finalUrl;
+  };
+
   const handleExecute = async () => {
     setIsExecuting(true);
     setExecutionResult(null);
@@ -483,7 +424,8 @@ const Workbench: React.FC<WorkbenchProps> = ({
         : null;
 
     const startTime = performance.now();
-    const finalUrl = substituteVariables(tempUrl, currentVariables);
+    const finalUrl = substituteParam(endpoint);
+
     try {
       const fetchHeaders = new Headers();
 
@@ -576,7 +518,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
       let proxyData: any = undefined;
       if (options.body instanceof URLSearchParams) {
         proxyData = options.body.toString();
-        plainHeaders["Content-Type"] = "application/x-www-form-urlencoded"; // ✅ fix
+        plainHeaders["Content-Type"] = "application/x-www-form-urlencoded";
       } else if (options.body instanceof FormData) {
         const formDataArray: { key: string; value: string }[] = [];
         options.body.forEach((value, key) => {
@@ -597,7 +539,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         method: options.method,
         url: finalUrl,
         headers: plainHeaders,
-        data: proxyData,
+        body: proxyData,
       };
 
       const response = await fetch(`${BASE_URL}/endpoint/execute`, {
@@ -621,9 +563,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
       try {
         const apiRes = await response.json();
         const proxyRes = apiRes.responseObject;
-        console.log("proxyRes");
-        console.log(proxyRes);
-
         if (proxyRes.error) {
           responseBody = proxyRes.details || proxyRes.error;
         } else {
@@ -834,32 +773,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
     }
   };
 
-  const isValidCurlyParams = (url: string) => {
-    // Remove variables from the string before checking braces
-    const cleanUrl = url
-      .replace(/\$\{([a-zA-Z0-9_]+)\}/g, "")
-      .replace(/\{\{(.+?)\}\}/g, "");
-
-    // Must match {something} format
-    const matches = [...cleanUrl.matchAll(/(?<!\$|\{)\{([^{}]+)\}(?!\})/g)];
-
-    // Count total opening and closing braces
-    const openCount = (cleanUrl.match(/{/g) || []).length;
-    const closeCount = (cleanUrl.match(/}/g) || []).length;
-
-    // 1️⃣ braces must match
-    if (openCount !== closeCount) return false;
-
-    // 2️⃣ No empty {}
-    if (cleanUrl.includes("{}")) return false;
-
-    // 3️⃣ Ensure all braces are part of valid matches
-    const totalValidBraces = matches.length * 2;
-    if (totalValidBraces !== openCount + closeCount) return false;
-
-    return true;
-  };
-
   const handleSave = () => {
     setSaveName(requestName);
     setDependentOnId("");
@@ -890,14 +803,14 @@ const Workbench: React.FC<WorkbenchProps> = ({
       toast.error("Endpoint name already exists. Please use a different name.");
       return;
     }
-
+    const reqBody = endpoint.requestBody;
     const endpointData = {
       method,
       url: tempUrl,
       preRequest,
       preRequestScript,
-      queryParams,
-      pathParams,
+      queryParams: reqBody?.queryParams,
+      pathParams: reqBody?.pathParams,
       headers,
       bodyType,
       rawFormat,
@@ -914,7 +827,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
     const payload = {
       apiId: endpoint.id,
       request: endpointData,
-      constraints: constraint,
+      constraints: endpoint.constraint,
       dependentId: dependentOnId !== "" ? [dependentOnId] : [],
       endpointName: saveName || requestName,
       controller: (endpoint?.tags && endpoint?.tags[0]) ?? "General",
@@ -922,6 +835,25 @@ const Workbench: React.FC<WorkbenchProps> = ({
     saveEndpoint(payload);
     setIsSaveModalOpen(false);
     toast.success("Request saved successfully");
+  };
+
+  const extractQueryParams = (url: string): string[] => {
+    try {
+      const queryString = url.split("?")[1];
+      if (!queryString) return [];
+
+      return queryString
+        .split("&")
+        .map((q) => q.split("=")[0])
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  const extractPathParams = (url: string): string[] => {
+    const matches = [...url.matchAll(/\{([a-zA-Z0-9_]+)\}/g)];
+    return matches.map((m) => m[1]);
   };
 
   return (
@@ -939,44 +871,31 @@ const Workbench: React.FC<WorkbenchProps> = ({
             variables={variables}
             onChange={(newUrl) => {
               setTempUrl(newUrl);
+              const pathParams = extractPathParams(newUrl).map((p) => ({
+                id: endpoint.id,
+                key: p,
+                value: "",
+                enabled: true,
+                description: "",
+              }));
+              const queryParams = extractQueryParams(newUrl).map((p) => ({
+                id: endpoint.id,
+                key: p,
+                value: "",
+                enabled: true,
+                description: "",
+              }));
 
-              const pathPart = newUrl.replace(baseUrl, "").split("?")[0];
-              const keys = [
-                ...pathPart.matchAll(/(?<!\$|\{)\{([^{}]+)\}(?!\})/g),
-              ].map((m) => m[1]);
-              const colonKeys = [
-                ...pathPart.matchAll(/(?<!https?):([a-zA-Z0-9_]+)/g),
-              ].map((m) => m[1]);
-              const allKeys = Array.from(new Set([...keys, ...colonKeys]));
-
-              if (isValidCurlyParams(newUrl) || !newUrl.includes("{")) {
-                setUrlPath(pathPart);
-              }
-
-              setPathParams((prev) => {
-                const existingKeys = prev.map((p) => p.key);
-                const keysToRemove = existingKeys.filter(
-                  (k) => !allKeys.includes(k),
-                );
-                const keysToAdd = allKeys.filter(
-                  (k) => !existingKeys.includes(k),
-                );
-
-                if (keysToRemove.length === 0 && keysToAdd.length === 0) {
-                  return prev;
-                }
-
-                let updated = prev.filter((p) => allKeys.includes(p.key));
-                keysToAdd.forEach((k) => {
-                  updated.push({
-                    id: Math.random().toString(),
-                    key: k,
-                    value: "",
-                    enabled: true,
-                    description: "Added from URL",
-                  });
-                });
-                return updated;
+              setSelectedEndpoint((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  requestBody: {
+                    ...prev.requestBody,
+                    pathParams,
+                    queryParams,
+                  },
+                };
               });
             }}
           />
@@ -1104,10 +1023,11 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 <h4 className="text-[11px] font-black theme-text-secondary uppercase tracking-[0.2em]">
                   Path Parameters
                 </h4>
-                {pathParams.length > 0 ? (
+                {(endpoint?.requestBody?.pathParams?.length ?? 0 > 0) ? (
                   <FormKeyEditor
                     bodyType={bodyType}
                     endpoint={endpoint}
+                    setSelectedEndpoint={setSelectedEndpoint}
                     sectionType="pathParams"
                     variables={variables}
                   />
@@ -1124,6 +1044,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
                 <FormKeyEditor
                   bodyType={bodyType}
                   endpoint={endpoint}
+                  setSelectedEndpoint={setSelectedEndpoint}
                   sectionType="queryParams"
                   variables={variables}
                 />
@@ -1139,6 +1060,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
               <FormKeyEditor
                 bodyType={bodyType}
                 endpoint={endpoint}
+                setSelectedEndpoint={setSelectedEndpoint}
                 sectionType="headers"
                 variables={variables}
               />
@@ -1227,6 +1149,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
               {bodyType === "form-data" && (
                 <FormKeyEditor
                   endpoint={endpoint}
+                  setSelectedEndpoint={setSelectedEndpoint}
                   sectionType="body"
                   variables={variables}
                   bodyType={bodyType}
@@ -1235,6 +1158,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
               {bodyType === "x-www-form-urlencoded" && (
                 <FormKeyEditor
                   endpoint={endpoint}
+                  setSelectedEndpoint={setSelectedEndpoint}
                   sectionType="body"
                   variables={variables}
                   bodyType={bodyType}
@@ -2046,6 +1970,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
         <BodyConfigModal
           endpoint={endpoint}
           variables={variables}
+          setSelectedEndpoint={setSelectedEndpoint}
           setShowBodyConfig={setShowBodyConfig}
         />
       )}
