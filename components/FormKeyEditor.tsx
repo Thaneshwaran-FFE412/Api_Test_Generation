@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import ConstraintPopup from "./ConstraintPopup";
 import VariableInput from "./VariableInput";
 import { ApiEndpoint } from "@/types";
+import { generateRawRandomValue, parseConstraint } from "@/utils/mtcGenerator";
 
 export interface KVItem {
   id: string;
@@ -109,23 +110,44 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
 
     setItems([...items, newItem]);
   };
+
+  const updateGenerationMode = (key: string, mode: "STATIC" | "DYNAMIC") => {
+    setSelectedEndpoint((prev: any) => {
+      const updated = { ...prev.constraint };
+
+      if (!updated[sectionType]) updated[sectionType] = {};
+
+      updated[sectionType][key] = {
+        ...updated[sectionType]?.[key],
+        generationMode: mode,
+      };
+
+      return {
+        ...prev,
+        constraint: updated,
+      };
+    });
+  };
+
   const updateRow = (id: string, field: keyof KVItem, val: any) => {
     const updatedItems = items.map((item) =>
       item.id === id ? { ...item, [field]: val } : item,
     );
-
     setItems(updatedItems);
     const updatedRequestBody = { ...endpoint.requestBody };
-
     if (sectionType === "body") {
       updatedRequestBody.body = updatedItems;
     } else {
       updatedRequestBody[sectionType] = updatedItems;
     }
-    setSelectedEndpoint(() => ({
-      ...endpoint,
-      requestBody: updatedRequestBody,
-    }));
+    setSelectedEndpoint((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        requestBody: updatedRequestBody,
+      };
+    });
   };
 
   const removeRow = (id: string) => {
@@ -133,118 +155,176 @@ export const FormKeyEditor: React.FC<KVEditorProps> = ({
     setItems(updated);
   };
 
+  const getField = (field: string) => {
+    const obj = endpoint.constraint[sectionType]?.[field];
+    if (!obj) return "";
+    return Object.entries(obj)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(", ");
+  };
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 text-[10px] font-black theme-text-secondary px-3 uppercase tracking-[0.2em] opacity-60">
+      <div className="grid grid-cols-[40px_1fr_1fr_1fr_150px_40px] gap-4 text-[10px] font-black theme-text-secondary px-3 uppercase tracking-[0.2em] opacity-60">
         <span></span>
         <span>Key</span>
         <span>Value</span>
         <span>Constraint</span>
+        <span className="text-center">Mode</span>
         <span></span>
       </div>
       <div className="space-y-2">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 items-center group theme-bg-surface/30 p-1.5 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all"
-          >
-            <div className="flex justify-center">
-              <input
-                type="checkbox"
-                checked={item.enabled}
-                onChange={(e) => {
-                  updateRow(item.id, "enabled", e.target.checked);
-                }}
-                className="accent-indigo-500 w-4 h-4 rounded"
-              />
-            </div>
-            <input
-              className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
-              placeholder="key"
-              disabled={!isEditable}
-              value={item.key}
-              onChange={(e) => {
-                updateRow(item.id, "key", e.target.value);
-              }}
-            />
-            <div className="flex gap-2 items-center">
-              {showType && (
-                <select
-                  value={item.type}
-                  onChange={(e) => updateRow(item.id, "type", e.target.value)}
-                  className="theme-bg-main border theme-border rounded-lg text-[10px] font-bold p-2 theme-text-primary outline-none shrink-0"
-                >
-                  <option value="text">TEXT</option>
-                  <option value="file">FILE</option>
-                </select>
-              )}
-              {item.options ? (
-                <select
-                  className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                  value={item.value}
-                  onChange={(e) => updateRow(item.id, "value", e.target.value)}
-                >
-                  <option value="">-- select --</option>
-                  {item.options.map((opt: any) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : item.type === "file" ? (
-                <div className="flex-1 flex gap-2 items-center">
-                  <input
-                    type="file"
-                    id={`file-${item.id}`}
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        updateRow(item.id, "value", file.name);
-                        toast.success(
-                          `File "${file.name}" uploaded successfully`,
-                        );
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`file-${item.id}`}
-                    className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-secondary cursor-pointer hover:theme-accent-bg/10 transition-all truncate"
-                  >
-                    {item.value || "Select File"}
-                  </label>
-                </div>
-              ) : (
-                <VariableInput
-                  className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
-                  placeholder="value"
-                  value={item.value}
-                  variables={variables}
-                  onChange={(val) => updateRow(item.id, "value", val)}
-                />
-              )}
-            </div>
-            <input
-              className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
-              placeholder="constraint"
-              value={item.constraint || ""}
-              readOnly
-              onClick={() =>
-                setEditingConstraint({ fieldKey: item.key, isOpen: true })
-              }
-            />
-            {isEditable && (
+        {items.map((item) => {
+          const constraintData = endpoint?.constraint[sectionType];
+          const constraint = constraintData[item.key];
+          const mode = constraint?.generationMode;
+          return (
+            <div
+              key={item.id}
+              className="grid grid-cols-[40px_1fr_1fr_1fr_150px_40px] gap-4 items-center group theme-bg-surface/30 p-1.5 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all"
+            >
               <div className="flex justify-center">
-                <button
-                  onClick={() => removeRow(item.id)}
-                  className="text-rose-500 opacity-20 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-90"
-                >
-                  <i className="fas fa-trash-alt text-[11px]"></i>
-                </button>
+                <input
+                  type="checkbox"
+                  checked={item.enabled}
+                  onChange={(e) => {
+                    updateRow(item.id, "enabled", e.target.checked);
+                  }}
+                  className="accent-indigo-500 w-4 h-4 rounded"
+                />
               </div>
-            )}
-          </div>
-        ))}
+              <input
+                className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                placeholder="key"
+                disabled={!isEditable}
+                value={item.key}
+                onChange={(e) => {
+                  updateRow(item.id, "key", e.target.value);
+                }}
+              />
+              <div className="flex gap-2 items-center">
+                {showType && (
+                  <select
+                    value={item.type}
+                    onChange={(e) => updateRow(item.id, "type", e.target.value)}
+                    className="theme-bg-main border theme-border rounded-lg text-[10px] font-bold p-2 theme-text-primary outline-none shrink-0"
+                  >
+                    <option value="text">TEXT</option>
+                    <option value="file">FILE</option>
+                  </select>
+                )}
+                {item.options ? (
+                  <select
+                    className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                    value={item.value}
+                    onChange={(e) =>
+                      updateRow(item.id, "value", e.target.value)
+                    }
+                  >
+                    <option value="">-- select --</option>
+                    {item.options.map((opt: any) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : item.type === "file" ? (
+                  <div className="flex-1 flex gap-2 items-center">
+                    <input
+                      type="file"
+                      id={`file-${item.id}`}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          updateRow(item.id, "value", file.name);
+                          toast.success(
+                            `File "${file.name}" uploaded successfully`,
+                          );
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={`file-${item.id}`}
+                      className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-secondary cursor-pointer hover:theme-accent-bg/10 transition-all truncate"
+                    >
+                      {item.value || "Select File"}
+                    </label>
+                  </div>
+                ) : (
+                  <VariableInput
+                    className="flex-1 theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                    placeholder="value"
+                    value={item.value}
+                    variables={variables}
+                    onChange={(val) => updateRow(item.id, "value", val)}
+                  />
+                )}
+              </div>
+              <input
+                className="theme-bg-main border theme-border rounded-lg px-4 py-2 text-xs font-mono theme-text-primary focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all cursor-pointer"
+                placeholder="constraint"
+                value={getField(item.key)}
+                readOnly
+                onClick={() =>
+                  setEditingConstraint({ fieldKey: item.key, isOpen: true })
+                }
+              />
+              <div className="flex justify-center items-center gap-1">
+                <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border">
+                  <button
+                    onClick={() => {
+                      updateGenerationMode(item.key, "STATIC");
+                      updateRow(item.id, "mode", "STATIC");
+                    }}
+                    className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${mode === "STATIC" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
+                  >
+                    Static
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateGenerationMode(item.key, "DYNAMIC");
+                      updateRow(item.id, "mode", "DYNAMIC");
+                    }}
+                    className={`px-2 py-1 text-[8px] font-black uppercase rounded transition-all ${mode === "DYNAMIC" ? "theme-accent-bg text-white shadow-lg" : "theme-text-secondary hover:theme-text-primary"}`}
+                  >
+                    Dynamic
+                  </button>
+                </div>
+                {mode === "DYNAMIC" && (
+                  <button
+                    onClick={() => {
+                      const constraint = parseConstraint(item.constraint);
+                      const randomVal = generateRawRandomValue(
+                        constraint,
+                        item.type,
+                        item.options,
+                      );
+                      updateRow(item.id, "value", randomVal);
+                      toast.success(
+                        `Generated value for ${item.key || "field"}`,
+                      );
+                    }}
+                    className="px-2 py-1 text-[8px] theme-bg-surface border theme-border rounded-lg theme-text-secondary hover:theme-accent-text transition-all"
+                    title="Generate random value"
+                  >
+                    <i className="fas fa-magic mr-1"></i>
+                  </button>
+                )}
+              </div>
+              {isEditable && (
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => removeRow(item.id)}
+                    className="text-rose-500 opacity-20 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-90"
+                  >
+                    <i className="fas fa-trash-alt text-[11px]"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       {isEditable && (
         <button
