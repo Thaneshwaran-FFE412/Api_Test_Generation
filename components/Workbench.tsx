@@ -244,7 +244,7 @@ const Workbench: React.FC<WorkbenchProps> = ({
       },
     ]);
     setTempUrl(baseUrl + endpoint.path);
-  }, [endpoint.id, baseUrl]);
+  }, [endpoint.id, baseUrl, endpoint.requestBody?.body]);
 
   const evaluateAssertions = (res: any, assertions: Assertion[]): any[] => {
     return assertions.map((a) => {

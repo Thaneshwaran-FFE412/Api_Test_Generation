@@ -74,7 +74,7 @@ export const substituteVariables = (
   return result;
 };
 
-const parseConstraint = (constraintStr?: string) => {
+export const parseConstraint = (constraintStr?: string) => {
   const c: any = { required: false, type: "string" };
   if (!constraintStr) return c;
   constraintStr.split(",").forEach((part) => {
@@ -91,7 +91,40 @@ const parseConstraint = (constraintStr?: string) => {
   return c;
 };
 
-const generateValidData = (
+export const generateRawRandomValue = (
+  constraint: any,
+  dataType?: string,
+  options?: string[],
+) => {
+  if (options && options.length > 0) {
+    return `{{$randomOption_${options.join("|")}}}`;
+  }
+  if (constraint.enum && constraint.enum.length > 0) {
+    return `{{$randomOption_${constraint.enum.join("|")}}}`;
+  }
+  const type = constraint.type || dataType || "string";
+  if (type === "number" || type === "integer") {
+    let min = constraint.min !== undefined ? constraint.min : 1;
+    let max = constraint.max !== undefined ? constraint.max : 1000;
+    return String(Math.floor(Math.random() * (max - min + 1)) + min);
+  }
+  if (type === "boolean") {
+    return Math.random() > 0.5 ? "true" : "false";
+  }
+  // string
+  let len = constraint.minLen !== undefined ? constraint.minLen : 8;
+  if (constraint.maxLen !== undefined && len > constraint.maxLen)
+    len = constraint.maxLen;
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let res = "";
+  for (let i = 0; i < len; i++) {
+    res += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return res;
+};
+
+export const generateValidData = (
   constraint: any,
   originalValue: string,
   dataType?: string,
