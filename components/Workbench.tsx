@@ -15,6 +15,11 @@ import {
 } from "../types";
 import AuthHeader from "./AuthHeader";
 import ConstraintModal from "./ConstraintModal";
+import {
+  parseConstraint,
+  substituteVariables,
+  generateRawRandomValue,
+} from "../utils/mtcGenerator";
 
 interface WorkbenchProps {
   endpoint: ApiEndpoint;
@@ -582,7 +587,6 @@ const Workbench: React.FC<WorkbenchProps> = ({
     setFormData(detectedFormData);
     setUrlEncoded(detectedUrlEncoded);
 
-    // Default assertion based on method
     const defaultStatusCode =
       endpoint.method.toUpperCase() === "POST" ? "201" : "200";
     setAssertions([
@@ -2590,21 +2594,48 @@ const KVEditor: React.FC<KVEditorProps> = ({
   const removeRow = (id: string) =>
     onUpdate(items.filter((item) => item.id !== id));
 
+  // const randomizeEverything = () => {
+  //   const newItems = items.map((item) => {
+  //     const constraint = parseConstraint(item.constraint);
+  //     if (item.mode === "static") {
+  //       return item;
+  //     }
+  //     return {
+  //       ...item,
+  //       mode: "dynamic",
+  //       value: generateRawRandomValue(constraint, item.type, item.options),
+  //     };
+  //   });
+  //   onUpdate(newItems);
+  //   toast.success("All fields randomized");
+  // };
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 text-[10px] font-black theme-text-secondary px-3 uppercase tracking-[0.2em] opacity-60">
+      {/* <div className="flex justify-end mb-1">
+        {items.length > 0 && (
+          <button
+            onClick={randomizeEverything}
+            className="text-[10px] font-black theme-accent-text hover:underline uppercase tracking-widest flex items-center gap-2"
+          >
+            <i className="fas fa-magic"></i>
+            Randomize All
+          </button>
+        )}
+      </div> */}
+      <div className="grid grid-cols-[40px_1fr_1fr_1fr_120px_40px] gap-4 text-[10px] font-black theme-text-secondary px-3 uppercase tracking-[0.2em] opacity-60">
         <span></span>
         <span>Key</span>
         <span>Value</span>
         <span>Constraint</span>
-        <span>Mode</span>
+        <span className="text-center">Mode</span>
         <span></span>
       </div>
       <div className="space-y-2">
         {items.map((item) => (
           <div
             key={item.id}
-            className="grid grid-cols-[40px_1fr_1fr_1fr_100px_40px] gap-4 items-center group theme-bg-surface/30 p-1.5 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all"
+            className="grid grid-cols-[40px_1fr_1fr_1fr_120px_40px] gap-4 items-center group theme-bg-surface/30 p-1.5 rounded-xl border border-transparent hover:border-indigo-500/30 transition-all"
           >
             <div className="flex justify-center">
               <input
@@ -2688,7 +2719,7 @@ const KVEditor: React.FC<KVEditorProps> = ({
               readOnly
               onClick={() => setEditingConstraintId(item.id)}
             />
-            <div className="flex justify-center">
+            <div className="flex justify-center items-center gap-1">
               <div className="flex theme-bg-workbench/50 p-0.5 rounded-lg border theme-border">
                 <button
                   onClick={() => updateRow(item.id, "mode", "static")}
@@ -2703,6 +2734,24 @@ const KVEditor: React.FC<KVEditorProps> = ({
                   Dynamic
                 </button>
               </div>
+              {item.mode === "dynamic" && (
+                <button
+                  onClick={() => {
+                    const constraint = parseConstraint(item.constraint);
+                    const randomVal = generateRawRandomValue(
+                      constraint,
+                      item.type,
+                      item.options,
+                    );
+                    updateRow(item.id, "value", randomVal);
+                    toast.success(`Generated value for ${item.key || "field"}`);
+                  }}
+                  className="px-2 py-1 text-[8px] theme-bg-surface border theme-border rounded-lg theme-text-secondary hover:theme-accent-text transition-all"
+                  title="Generate random value"
+                >
+                  <i className="fas fa-magic mr-1"></i>
+                </button>
+              )}
             </div>
             {isEditable && (
               <div className="flex justify-center">
@@ -3145,10 +3194,39 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
 
           {/* Right Side: Field Configuration */}
           <div className="w-[700px] p-6 overflow-y-auto theme-bg-workbench/40">
-            <h4 className="text-[10px] font-black theme-text-secondary uppercase mb-4 tracking-widest flex items-center gap-2">
-              <i className="fas fa-tasks"></i>
-              Field Configuration
-            </h4>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-[10px] font-black theme-text-secondary uppercase tracking-widest flex items-center gap-2">
+                <i className="fas fa-tasks"></i>
+                Field Configuration
+              </h4>
+              {jsonFields.length > 0 && (
+                <button
+                  onClick={() => {
+                    const newFields = jsonFields.map((f) => {
+                      if (f.mode === "static") {
+                        return f;
+                      }
+                      const constraint = parseConstraint(f.constraint);
+                      return {
+                        ...f,
+                        mode: "dynamic",
+                        value: generateRawRandomValue(
+                          constraint,
+                          f.dataType,
+                          f.options,
+                        ),
+                      };
+                    });
+                    setJsonFields(newFields);
+                    toast.success("Randomized all fields");
+                  }}
+                  className="theme-accent-bg text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase shadow-lg hover:scale-105 active:scale-95 transition-all tracking-widest flex items-center gap-2"
+                >
+                  <i className="fas fa-magic"></i>
+                  Auto-Gen Dynamic Fields
+                </button>
+              )}
+            </div>
             {(format === "json" || format === "xml") &&
             jsonFields.length > 0 ? (
               <div className="border theme-border rounded-xl overflow-hidden theme-bg-workbench/20">
@@ -3246,6 +3324,30 @@ const BodyConfigModal: React.FC<BodyConfigModalProps> = ({
                             >
                               Dynamic
                             </button>
+                            {field.mode === "dynamic" && (
+                              <button
+                                onClick={() => {
+                                  const newFields = [...jsonFields];
+                                  const constraint = parseConstraint(
+                                    field.constraint,
+                                  );
+                                  const randomVal = generateRawRandomValue(
+                                    constraint,
+                                    field.dataType,
+                                    field.options,
+                                  );
+                                  newFields[idx].value = randomVal;
+                                  setJsonFields(newFields);
+                                  toast.success(
+                                    `Generated value for ${field.key}`,
+                                  );
+                                }}
+                                className="px-2 py-0.5 text-[8px] font-black uppercase rounded transition-all theme-text-secondary hover:theme-accent-text"
+                                title="Auto Generate Value"
+                              >
+                                <i className="fas fa-magic mr-1"></i>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
