@@ -6,7 +6,12 @@ import toast from "react-hot-toast";
 interface TestCasesPanelProps {
   testCases: SavedTestCase[];
   getEndpointList: () => void;
-  onGenerateMTC: (ids: string[]) => Promise<boolean>;
+  executionList: any[];
+  onGenerateMTC: (
+    ids: string[],
+    testCases: SavedTestCase[] | [],
+    executionName: string,
+  ) => Promise<boolean>;
   onSaveModule: (ids: string[], name: string) => void;
   isGeneratingMTC: boolean;
   project: SwaggerProject;
@@ -17,11 +22,14 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
   testCases,
   getEndpointList,
   onGenerateMTC,
+  executionList,
   onSaveModule,
   isGeneratingMTC,
   project,
   generatedMTCData,
 }) => {
+  console.log("testCases");
+  console.log(testCases);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -194,11 +202,17 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
     setIsSaveModalOpen(true);
   };
 
-  const confirmSaveModule = async () => {
+  const confirmSaveModule = async (moduleName: string) => {
     if (!moduleName.trim()) return;
     if (selectedIds.size === 0) return;
-    const mtcData = await onGenerateMTC(Array.from(selectedIds));
-    toast.success("Module saved successfully!");
+    const mtcData = await onGenerateMTC(
+      Array.from(selectedIds),
+      testCases,
+      moduleName,
+    );
+    if (mtcData) {
+      toast.success("Module saved successfully!");
+    }
     setIsSaveModalOpen(false);
   };
 
@@ -397,7 +411,7 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && moduleName.trim()) {
-                    confirmSaveModule();
+                    confirmSaveModule(moduleName);
                   }
                 }}
               />
@@ -410,7 +424,9 @@ const TestCasesPanel: React.FC<TestCasesPanelProps> = ({
                 Cancel
               </button>
               <button
-                onClick={confirmSaveModule}
+                onClick={() => {
+                  confirmSaveModule(moduleName);
+                }}
                 disabled={!moduleName.trim()}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

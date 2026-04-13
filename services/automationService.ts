@@ -1,3 +1,4 @@
+import { ExecutionProps } from "@/components/ExecutionPanel";
 import {
   SavedTestCase,
   ExecutionResult,
@@ -131,6 +132,89 @@ const updateExcelRowFromResolved = (excelRow: any, resolvedRawRow: any) => {
       excelRow[field] = resolvedRawRow.auth;
     }
   });
+};
+
+export const runExecutionFromDB = async (
+  execution: ExecutionProps,
+  testCases: SavedTestCase[],
+  endpoints: ApiEndpoint[],
+  variables: Record<string, string>,
+  globalAuth: GlobalAuth,
+) => {
+  const results: ExecutionResult[] = [];
+  const updatedRows = [...execution.rows];
+  let currentVariables = { ...variables };
+  console.log("Outside the ForLoop");
+
+  for (let i = 0; i < execution.rawRows.length; i++) {
+    const rawRow = execution.rawRows[i];
+    const excelRow = updatedRows[i];
+
+    try {
+      // 🔍 Find matching test case using endpoint + method
+      const testCase = testCases.find(
+        (tc) =>
+          tc.request.url.includes(rawRow.endPoint) &&
+          tc.request.method === rawRow.httpMethod,
+      );
+
+      if (!testCase) {
+        excelRow["Status"] = "Fail";
+        excelRow["Comments"] = "Test case not found";
+        continue;
+      }
+
+      // 🔥 Resolve variables if any
+      const resolvedRawRow = resolveRawRow(rawRow, currentVariables);
+      console.log("Before Execution");
+
+      // 🚀 Execute API
+      const result = await executeScenario(
+        testCase,
+        resolvedRawRow,
+        globalAuth,
+        currentVariables,
+      );
+      console.log("After Execution");
+
+      // ✅ Capture variables
+      if (result.capturedData) {
+        result.capturedData.forEach((c) => {
+          currentVariables[c.variableName] = c.value;
+        });
+      }
+
+      results.push(result);
+
+      // 📝 Update Excel Row
+      excelRow["Actual Result"] = result.statusCode
+        ? `Status: ${result.statusCode}\n${String(result.response.body).substring(0, 100)}...`
+        : result.statusText;
+
+      excelRow["Status"] = result.status === "pass" ? "Pass" : "Fail";
+
+      if (result.status === "pass") {
+        excelRow["Comments"] = "Test case passed successfully.";
+      } else {
+        excelRow["Comments"] =
+          `Expected: ${rawRow.expected}, Actual: ${result.statusCode}`;
+      }
+    } catch (e) {
+      console.error("Execution error:", e);
+
+      excelRow["Actual Result"] = "Execution Error";
+      excelRow["Status"] = "Fail";
+      excelRow["Comments"] = e instanceof Error ? e.message : String(e);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  return {
+    results,
+    updatedRows,
+    updatedVariables: currentVariables,
+  };
 };
 
 export const runAutomatedTests = async (
@@ -631,6 +715,233 @@ const executeMTCScenario = async (
       },
     ],
     capturedData: capturedData,
+    timestamp: Date.now(),
+  };
+};
+
+const executeScenario = async (
+  tc: SavedTestCase,
+  rawRow: any,
+  globalAuth: GlobalAuth,
+  variables: Record<string, string>,
+): Promise<ExecutionResult> => {
+  const startTime = performance.now();
+
+  // ✅ FIXED: Correct source
+  let finalUrl = tc.request?.url || "";
+
+  // ============================
+  // 🔹 PATH PARAMS
+  // ============================
+  Object.entries(rawRow.pathParams || {}).forEach(([k, v]) => {
+    finalUrl = finalUrl.replace(new RegExp(`\\$\\{${k}\\}`, "g"), String(v));
+    finalUrl = finalUrl.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+  });
+
+  finalUrl = substituteVariables(finalUrl, variables);
+
+  try {
+    const urlObj = new URL(finalUrl);
+
+    Object.entries(rawRow.queryParams || {}).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== "") {
+        urlObj.searchParams.set(k, String(v));
+      }
+    });
+
+    finalUrl = urlObj.toString();
+  } catch (e) {
+    console.warn("Invalid URL:", finalUrl);
+  }
+
+  // ============================
+  // 🔹 HEADERS
+  // ============================
+  const headers = new Headers();
+
+  Object.entries(rawRow.headerParams || {}).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== "") {
+      headers.append(k, String(v));
+    }
+  });
+
+  // Auth
+  if (globalAuth.type === "bearer" && globalAuth.bearerToken) {
+    headers.set("Authorization", `Bearer ${globalAuth.bearerToken}`);
+  } else if (
+    globalAuth.type === "apikey" &&
+    globalAuth.apiKey &&
+    globalAuth.apiKeyValue
+  ) {
+    headers.set(globalAuth.apiKey, globalAuth.apiKeyValue);
+  } else if (
+    globalAuth.type === "basic" &&
+    globalAuth.username &&
+    globalAuth.password
+  ) {
+    headers.set(
+      "Authorization",
+      `Basic ${btoa(`${globalAuth.username}:${globalAuth.password}`)}`,
+    );
+  }
+
+  // ============================
+  // 🔹 BODY
+  // ============================
+  let body: any = undefined;
+
+  const bodyType = tc.request?.bodyType;
+  const rawFormat = tc.request?.rawFormat;
+
+  if (
+    rawRow.payload &&
+    (typeof rawRow.payload === "string"
+      ? rawRow.payload.length > 0
+      : Object.keys(rawRow.payload).length > 0)
+  ) {
+    if (bodyType === "raw") {
+      body =
+        rawFormat === "json"
+          ? typeof rawRow.payload === "string"
+            ? rawRow.payload
+            : JSON.stringify(rawRow.payload)
+          : String(rawRow.payload);
+    } else if (bodyType === "x-www-form-urlencoded") {
+      const params = new URLSearchParams();
+      Object.entries(rawRow.payload).forEach(([k, v]) => {
+        params.append(k, String(v));
+      });
+      body = params.toString();
+    }
+  }
+
+  if (body && !headers.has("Content-Type")) {
+    if (bodyType === "raw" && rawFormat === "json") {
+      headers.set("Content-Type", "application/json");
+    } else if (bodyType === "x-www-form-urlencoded") {
+      headers.set("Content-Type", "application/x-www-form-urlencoded");
+    }
+  }
+
+  const plainHeaders: Record<string, string> = {};
+  headers.forEach((v, k) => (plainHeaders[k] = v));
+
+  // ============================
+  // 🔹 API CALL
+  // ============================
+  let responseBody: any;
+  let statusCode = 0;
+  let statusText = "";
+  let status: "pass" | "fail" | "error" = "error";
+  let resHeaders: Record<string, string> = {};
+
+  try {
+    const response = await fetch("/api/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: rawRow.httpMethod,
+        url: finalUrl,
+        headers: plainHeaders,
+        data: body,
+      }),
+    });
+
+    const proxyRes = await response.json();
+
+    if (proxyRes.error) {
+      responseBody = proxyRes.details || proxyRes.error;
+    } else {
+      statusCode = proxyRes.status;
+      statusText = proxyRes.statusText;
+      responseBody = proxyRes.data;
+      resHeaders = proxyRes.headers || {};
+
+      responseBody =
+        typeof responseBody === "object"
+          ? JSON.stringify(responseBody, null, 2)
+          : String(responseBody);
+    }
+
+    const expectedStatuses = String(rawRow.expected)
+      .split("/")
+      .map((s) => parseInt(s.trim()));
+
+    status = expectedStatuses.includes(statusCode) ? "pass" : "fail";
+  } catch (e: any) {
+    responseBody = e.message;
+    status = "error";
+  }
+
+  // ============================
+  // 🔹 CAPTURES (SAFE)
+  // ============================
+  const capturedData: any[] = [];
+
+  if (rawRow.postResponse?.length) {
+    rawRow.postResponse.forEach((capture: any) => {
+      try {
+        if (capture.type === "json_path") {
+          const json =
+            typeof responseBody === "string"
+              ? JSON.parse(responseBody)
+              : responseBody;
+
+          const value = capture.property
+            ?.replace(/^\$\./, "")
+            .split(".")
+            .reduce((acc: any, key: string) => acc?.[key], json);
+
+          if (value !== undefined) {
+            capturedData.push({
+              variableName: capture.variableName,
+              value: String(value),
+              source: capture.property,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Capture failed", e);
+      }
+    });
+  }
+
+  const endTime = performance.now();
+
+  // ============================
+  // 🔹 FINAL RESULT
+  // ============================
+  return {
+    id: Math.random().toString(),
+    testCaseId: tc.id,
+    testCaseName: `${tc.endpointName} - ${rawRow.set} - ${rawRow.summary}`,
+    status,
+    statusCode,
+    statusText,
+    responseTime: Math.round(endTime - startTime),
+    request: {
+      method: rawRow.httpMethod,
+      url: finalUrl,
+      headers: plainHeaders,
+      body,
+    },
+    response: {
+      headers: resHeaders,
+      body: responseBody,
+    },
+    assertionResults: [
+      {
+        assertion: {
+          id: "mtc-check",
+          type: "status_code",
+          operator: "eq",
+          expected: String(rawRow.expected),
+        },
+        passed: status === "pass",
+        actual: statusCode.toString(),
+      },
+    ],
+    capturedData,
     timestamp: Date.now(),
   };
 };

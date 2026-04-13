@@ -11,7 +11,7 @@ import Sidebar from "../components/Sidebar";
 import Workbench from "../components/Workbench";
 import TestCasesPanel from "../components/TestCasesPanel";
 import VariablesPanel from "../components/VariablesPanel";
-import ModulesPanel from "../components/ModulesPanel";
+import ExecutionPanel, { ExecutionProps } from "../components/ExecutionPanel";
 import ReportModal from "../components/ReportModal";
 import {
   runAutomatedTests,
@@ -40,6 +40,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   );
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("saved");
   const [testCases, setTestCases] = useState<SavedTestCase[] | []>([]);
+  const [executionList, setExecutionList] = useState<ExecutionProps[]>([]);
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [variableList, setVariableList] = useState<VariableProp[]>([]);
 
@@ -98,6 +99,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
   useEffect(() => {
     getEndpointList();
+    getExecutionList();
   }, []);
 
   const getEndpointList = async () => {
@@ -108,6 +110,22 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
     if (response.responseCode === 200) {
       setTestCases(response.responseObject);
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
+
+  const getExecutionList = async () => {
+    const data: any = await fetch(`${BASE_URL}/execution/all`, {
+      method: "GET",
+    });
+    const response = await data.json();
+
+    if (response.responseCode === 200) {
+      console.log("response.responseObject");
+      console.log(response.responseObject);
+
+      setExecutionList(response.responseObject);
     } else {
       console.error("Failed to fetch saved scenarios");
     }
@@ -172,220 +190,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
   const handleSaveExecution = (name: any) => {
     toast.success("Module saved successfully!");
-  };
-
-  const handleDeleteModules = (ids: string[]) => {
-    const updatedProject = {
-      ...project,
-      savedModules: (project.savedModules || []).filter(
-        (m) => !ids.includes(m.id),
-      ),
-    };
-    toast.success("Modules deleted successfully!");
-  };
-
-  const handleDownloadModule = async (id: string, withAutomation: boolean) => {
-    const mod = project.savedModules?.find((m) => m.id === id);
-    if (!mod) return;
-
-    const getDependenciesString = (
-      tcId: string,
-      visited = new Set<string>(),
-    ): string[] => {
-      if (visited.has(tcId)) return [];
-      visited.add(tcId);
-      const tc = project.savedTestCases.find((t) => t.id === tcId);
-      if (tc && tc.dependentId) {
-        const dep = project.savedTestCases.find(
-          (t) => t.id === tc.dependentId[0],
-        );
-        if (dep) {
-          return [...getDependenciesString(dep.id, visited), dep.endpointName];
-        }
-      }
-      return [];
-    };
-
-    if (withAutomation) {
-      setIsExecutingAutomation(true);
-      try {
-        const {
-          results,
-          excelDataByTestCase: autoExcelData,
-          updatedVariables,
-        } = await runAutomatedTests(
-          mod.testCaseIds,
-          project.savedTestCases,
-          globalAuth,
-          variables,
-          project.endpoints,
-          mod.mtcData,
-        );
-
-        setVariables(updatedVariables);
-
-        const workbook = XLSX.utils.book_new();
-        let hasData = false;
-
-        let allTcIds = Object.keys(mod.mtcData);
-        const sortedIds: string[] = [];
-        const visited = new Set<string>();
-
-        const visit = (tcId: string) => {
-          if (visited.has(tcId)) return;
-          const tc = project.savedTestCases.find((t) => t.id === tcId);
-          if (tc && tc.dependentId && allTcIds.includes(tc.dependentId[0])) {
-            visit(tc.dependentId[0]);
-          }
-          visited.add(tcId);
-          sortedIds.push(tcId);
-        };
-
-        allTcIds.forEach(visit);
-        allTcIds = sortedIds;
-
-        for (const tcId of allTcIds) {
-          const tc = project.savedTestCases.find((t) => t.id === tcId);
-          if (!tc) continue;
-
-          const endpoint = project.endpoints.find((e) => e.id === tc.id);
-          if (!endpoint) continue;
-
-          let sheetRows = autoExcelData[tcId] || [];
-          if (sheetRows.length > 0) {
-            hasData = true;
-            const moduleName = endpoint.tags?.[0] || "Default Module";
-            const clonedRows = sheetRows.map((row: any) => ({ ...row }));
-            const deps = getDependenciesString(tc.id);
-            const depsString = deps.length > 0 ? deps.join(", ") : "None";
-            formatAndAppendSheet(
-              workbook,
-              clonedRows,
-              moduleName,
-              tc.endpointName,
-              depsString,
-            );
-          }
-        }
-
-        if (results.length > 0) {
-          setReportData(results);
-          setExcelDataByTestCase(autoExcelData);
-        }
-
-        if (hasData) {
-          XLSX.writeFile(
-            workbook,
-            `${mod.name.replace(/\s+/g, "_")}_Automation_Report.xlsx`,
-          );
-          toast.success("Module automation report downloaded!");
-        } else {
-          toast.error("No data to download.");
-        }
-      } catch (e) {
-        console.error("Automation Error:", e);
-        toast.error("An error occurred while running automation.");
-      } finally {
-        setIsExecutingAutomation(false);
-      }
-    } else {
-      // Download MTC data only
-      const workbook = XLSX.utils.book_new();
-      let hasData = false;
-
-      // Use all keys in mtcData to include dependencies that were saved
-      let allTcIds = Object.keys(mod.mtcData);
-
-      // Sort topologically so dependencies come first
-      const sortedIds: string[] = [];
-      const visited = new Set<string>();
-
-      const visit = (tcId: string) => {
-        if (visited.has(tcId)) return;
-        const tc = project.savedTestCases.find((t) => t.id === tcId);
-        if (tc && tc.dependentId[0] && allTcIds.includes(tc.dependentId[0])) {
-          visit(tc.dependentId[0]);
-        }
-        visited.add(tcId);
-        sortedIds.push(tcId);
-      };
-
-      allTcIds.forEach(visit);
-      allTcIds = sortedIds;
-
-      for (const tcId of allTcIds) {
-        const tc = project.savedTestCases.find((t) => t.id === tcId);
-        if (!tc) continue;
-
-        const endpoint = project.endpoints.find((e) => e.id === tc.id);
-        if (!endpoint) continue;
-
-        const mtcData = mod.mtcData[tcId];
-        if (mtcData && mtcData.rows.length > 0) {
-          hasData = true;
-          const moduleName = endpoint.tags?.[0] || "Default Module";
-
-          const getExecutionPlan = (
-            tId: string,
-            v = new Set<string>(),
-          ): string[] => {
-            if (v.has(tId)) return [];
-            v.add(tId);
-            const t = project.savedTestCases.find((x) => x.id === tId);
-            if (!t) return [];
-            let plan: string[] = [];
-            if (t.dependentId[0]) {
-              plan = plan.concat(getExecutionPlan(t.dependentId[0], v));
-            }
-            plan.push(tId);
-            return plan;
-          };
-
-          const planIds = getExecutionPlan(tcId);
-          const depIds = planIds.slice(0, planIds.length - 1);
-
-          const interleavedRows: any[] = [];
-          let currentSlNo = 1;
-
-          for (let i = 0; i < mtcData.rows.length; i++) {
-            // Add dependency rows first
-            for (const dId of depIds) {
-              const dData = mod.mtcData[dId];
-              if (dData && dData.rows.length > 0) {
-                const dRow = { ...dData.rows[0] };
-                dRow["Sl No"] = currentSlNo++;
-                dRow["Test Case Summary"] =
-                  `[Dependency] ${dRow["Test Case Summary"]}`;
-                applySubstitutionsToExcelRow(dRow, variables);
-                interleavedRows.push(dRow);
-              }
-            }
-            // Add target row
-            const tRow = { ...mtcData.rows[i] };
-            tRow["Sl No"] = currentSlNo++;
-            applySubstitutionsToExcelRow(tRow, variables);
-            interleavedRows.push(tRow);
-          }
-
-          const deps = getDependenciesString(tc.id);
-          const depsString = deps.length > 0 ? deps.join(", ") : "None";
-          formatAndAppendSheet(
-            workbook,
-            interleavedRows,
-            moduleName,
-            tc.endpointName,
-            depsString,
-          );
-        }
-      }
-
-      if (hasData) {
-        XLSX.writeFile(workbook, `${mod.name.replace(/\s+/g, "_")}_MTC.xlsx`);
-        toast.success("Module MTC data downloaded!");
-      } else {
-        toast.error("No MTC data found for this module.");
-      }
-    }
   };
 
   const handleExportModulePostman = (id: string) => {
@@ -570,11 +374,39 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
     toast.success("Module exported to Fireflink format!");
   };
 
-  const handleGenerateMTC = async (ids: string[]) => {
+  const saveExecution = async (ExecutionData: any) => {
+    console.log("ExecutionData");
+    console.log(ExecutionData);
+
+    const data: any = await fetch(`${BASE_URL}/execution/create`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(ExecutionData),
+    });
+    const response = await data.json();
+
+    if (response.responseCode === 200) {
+      getExecutionList();
+    } else {
+      console.error("Failed to fetch saved scenarios");
+    }
+  };
+
+  const handleGenerateMTC = async (
+    ids: string[],
+    testCases: SavedTestCase[] | [],
+    executionName: string,
+  ) => {
+    console.log("ids");
+    console.log(ids);
+    console.log("testCases");
+    console.log(testCases);
+
     if (!testCases || ids.length === 0) {
       return false;
     }
-
     setIsGeneratingMTC(true);
 
     try {
@@ -589,6 +421,11 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
         let plan: SavedTestCase[] = [];
         if (tc.dependentId[0]) {
+          console.log("project.savedTestCases");
+          console.log(project);
+          console.log(project.savedTestCases);
+          console.log(tc.dependentId[0]);
+
           const dep = project.savedTestCases.find(
             (t) => t.id === tc.dependentId[0],
           );
@@ -622,6 +459,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
 
         const result = generateMTCData(tc, endpoint, 1, variables);
         newGeneratedMTCData[tc.id] = result;
+        await saveExecution({ ...result, executionName });
+
         let sheetRows = result.rows;
 
         if (sheetRows.length > 0) {
@@ -629,7 +468,6 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         }
       }
       if (hasData) {
-        setGeneratedMTCData(newGeneratedMTCData);
         return true;
       } else {
         toast.error("No Test Cases were generated. Please try again.");
@@ -742,6 +580,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
             {testCases && (
               <TestCasesPanel
                 testCases={testCases}
+                executionList={executionList}
                 onGenerateMTC={handleGenerateMTC}
                 onSaveModule={handleSaveExecution}
                 isGeneratingMTC={isGeneratingMTC}
@@ -795,11 +634,12 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           <div
             className={`absolute inset-0 flex flex-col transition-opacity duration-200 ${activeTab === "execution" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
           >
-            <ModulesPanel
-              modules={project.savedModules || []}
+            <ExecutionPanel
+              executionList={executionList || []}
               project={project}
-              onDelete={handleDeleteModules}
-              onDownload={handleDownloadModule}
+              testCases={testCases}
+              variables={variables}
+              getExecutionList={getExecutionList}
               onExportPostman={handleExportModulePostman}
               onExportFireflink={handleExportModuleFireflink}
               isExecuting={isExecutingAutomation}
