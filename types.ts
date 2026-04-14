@@ -154,7 +154,7 @@ export interface ConstraintType {
 
 export interface ExecutionResult {
   id: string;
-  testCaseId: string;
+  testCaseId?: string;
   testCaseName: string;
   status: "pass" | "fail" | "error";
   statusCode: number;
@@ -180,7 +180,7 @@ export interface ExecutionResult {
     value: any;
     source: string;
   }[];
-  timestamp: number;
+  isSlow:boolean;
 }
 
 export interface GlobalAuth {

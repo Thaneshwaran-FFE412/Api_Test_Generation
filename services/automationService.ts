@@ -11,6 +11,7 @@ import {
   formatParams,
   formatPathParams,
 } from "../utils/mtcGenerator";
+import { BASE_URL } from "@/pages/LandingPage";
 
 export const applySubstitutionsToExcelRow = (
   row: any,
@@ -135,27 +136,30 @@ const updateExcelRowFromResolved = (excelRow: any, resolvedRawRow: any) => {
 };
 
 export const runExecutionFromDB = async (
+  // Updated New One
   execution: ExecutionProps,
   testCases: SavedTestCase[],
   endpoints: ApiEndpoint[],
   variables: Record<string, string>,
   globalAuth: GlobalAuth,
 ) => {
+  console.log("execution Inside runExecutionFromDB");
+  console.log(execution);
+
   const results: ExecutionResult[] = [];
-  const updatedRows = [...execution.rows];
+  const updatedRow = [...execution.rows];
   let currentVariables = { ...variables };
-  console.log("Outside the ForLoop");
 
   for (let i = 0; i < execution.rawRows.length; i++) {
     const rawRow = execution.rawRows[i];
-    const excelRow = updatedRows[i];
+    const excelRow = updatedRow[i];
 
     try {
-      // 🔍 Find matching test case using endpoint + method
-      const testCase = testCases.find(
-        (tc) =>
-          tc.request.url.includes(rawRow.endPoint) &&
-          tc.request.method === rawRow.httpMethod,
+      // ============================
+      // 🔍 FIND TEST CASE
+      // ============================
+      const testCase = testCases.find((tc) =>
+        tc.request?.url?.includes(rawRow.endPoint),
       );
 
       if (!testCase) {
@@ -164,41 +168,167 @@ export const runExecutionFromDB = async (
         continue;
       }
 
-      // 🔥 Resolve variables if any
+      // ============================
+      // 🔹 RESOLVE VARIABLES
+      // ============================
       const resolvedRawRow = resolveRawRow(rawRow, currentVariables);
-      console.log("Before Execution");
 
-      // 🚀 Execute API
-      const result = await executeScenario(
-        testCase,
-        resolvedRawRow,
-        globalAuth,
-        currentVariables,
-      );
-      console.log("After Execution");
+      // ============================
+      // 🔹 BUILD URL
+      // ============================
+      let finalUrl = testCase.request.url;
 
-      // ✅ Capture variables
-      if (result.capturedData) {
-        result.capturedData.forEach((c) => {
-          currentVariables[c.variableName] = c.value;
+      Object.entries(resolvedRawRow.pathParams || {}).forEach(([k, v]) => {
+        finalUrl = finalUrl.replace(`{${k}}`, String(v));
+      });
+
+      finalUrl = substituteVariables(finalUrl, currentVariables);
+
+      const urlObj = new URL(finalUrl);
+      Object.entries(resolvedRawRow.queryParams || {}).forEach(([k, v]) => {
+        if (v) urlObj.searchParams.set(k, String(v));
+      });
+      finalUrl = urlObj.toString();
+
+      // ============================
+      // 🔹 HEADERS
+      // ============================
+      const plainHeaders: Record<string, string> = {};
+
+      Object.entries(resolvedRawRow.headerParams || {}).forEach(([k, v]) => {
+        if (v) plainHeaders[k] = String(v);
+      });
+
+      // Apply Global Auth
+      if (globalAuth.type === "bearer" && globalAuth.bearerToken) {
+        plainHeaders["Authorization"] = `Bearer ${globalAuth.bearerToken}`;
+      }
+
+      // ============================
+      // 🔹 BODY
+      // ============================
+      let body: any = undefined;
+
+      if (resolvedRawRow.payload) {
+        if (testCase.request.bodyType === "raw") {
+          body =
+            testCase.request.rawFormat === "json"
+              ? typeof resolvedRawRow.payload === "string"
+                ? resolvedRawRow.payload
+                : JSON.stringify(resolvedRawRow.payload)
+              : String(resolvedRawRow.payload);
+        }
+      }
+
+      // ============================
+      // 🔹 CALL BACKEND
+      // ============================
+      const startTime = performance.now();
+
+      const response = await fetch(`${BASE_URL}/execution/autoExecution`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          method: resolvedRawRow.httpMethod,
+          url: finalUrl,
+          headers: plainHeaders,
+          body: body,
+        }),
+      });
+      const endTime = performance.now();
+      const responseTime = Math.round(endTime - startTime);
+      const resData = await response.json();
+
+      const statusCode = resData.status || 0;
+      const responseBody = resData.data;
+      const statusText = resData.statusText || "";
+
+      // ============================
+      // 🔹 PASS / FAIL
+      // ============================
+      const expectedStatuses = String(resolvedRawRow.expected)
+        .split("/")
+        .map((s) => parseInt(s.trim()));
+
+      const status: "pass" | "fail" = expectedStatuses.includes(statusCode)
+        ? "pass"
+        : "fail";
+
+      // ============================
+      // 🔹 BUILD RESULT
+      // ============================
+      const result: ExecutionResult = {
+        id: testCase.id,
+        testCaseName: `${testCase.endpointName} - ${rawRow.set} - ${rawRow.summary}`,
+        status,
+        statusCode,
+        statusText,
+        responseTime,
+        request: {
+          method: resolvedRawRow.httpMethod,
+          url: finalUrl,
+          headers: plainHeaders,
+          body,
+        },
+        response: {
+          headers: resData.headers || {},
+          body: responseBody,
+        },
+        assertionResults: [],
+        capturedData: [],
+        isSlow: true,
+      };
+
+      // ============================
+      // 🔹 CAPTURE VARIABLES
+      // ============================
+      if (resolvedRawRow.postResponse?.length) {
+        resolvedRawRow.postResponse.forEach((capture: any) => {
+          try {
+            const json =
+              typeof responseBody === "string"
+                ? JSON.parse(responseBody)
+                : responseBody;
+
+            const value = capture.property
+              ?.replace(/^\$\./, "")
+              .split(".")
+              .reduce((acc: any, key: string) => acc?.[key], json);
+
+            if (value !== undefined) {
+              currentVariables[capture.variableName] = String(value);
+              result.capturedData.push({
+                variableName: capture.variableName,
+                value: String(value),
+                source: capture.property,
+              });
+            }
+          } catch (e) {
+            console.warn("Capture failed", e);
+          }
         });
       }
 
-      results.push(result);
+      const isSlow = responseTime > 1000; // 1 sec
 
-      // 📝 Update Excel Row
-      excelRow["Actual Result"] = result.statusCode
-        ? `Status: ${result.statusCode}\n${String(result.response.body).substring(0, 100)}...`
-        : result.statusText;
+      results.push({ ...result, isSlow });
 
-      excelRow["Status"] = result.status === "pass" ? "Pass" : "Fail";
+      // ============================
+      // 📝 UPDATE EXCEL
+      // ============================
+      excelRow["Actual Result"] = `Status: ${statusCode}\n${
+        typeof responseBody === "object"
+          ? JSON.stringify(responseBody, null, 2)
+          : String(responseBody)
+      }`;
+      excelRow["Status"] = status === "pass" ? "Pass" : "Fail";
 
-      if (result.status === "pass") {
-        excelRow["Comments"] = "Test case passed successfully.";
-      } else {
-        excelRow["Comments"] =
-          `Expected: ${rawRow.expected}, Actual: ${result.statusCode}`;
-      }
+      excelRow["Comments"] =
+        status === "pass"
+          ? "Test case passed successfully."
+          : `Expected: ${rawRow.expected}, Actual: ${statusCode}`;
     } catch (e) {
       console.error("Execution error:", e);
 
@@ -206,742 +336,11 @@ export const runExecutionFromDB = async (
       excelRow["Status"] = "Fail";
       excelRow["Comments"] = e instanceof Error ? e.message : String(e);
     }
-
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   return {
     results,
-    updatedRows,
-    updatedVariables: currentVariables,
-  };
-};
-
-export const runAutomatedTests = async (
-  testCaseIds: string[],
-  allTestCases: SavedTestCase[],
-  globalAuth: GlobalAuth,
-  variables: Record<string, string>,
-  endpoints: ApiEndpoint[],
-  savedMtcData?: Record<string, { rows: any[]; rawRows: any[] }>,
-): Promise<{
-  results: ExecutionResult[];
-  excelDataByTestCase: Record<string, any[]>;
-  updatedVariables: Record<string, string>;
-}> => {
-  const results: ExecutionResult[] = [];
-  const excelDataByTestCase: Record<string, any[]> = {};
-  const targetCases = allTestCases.filter((tc) => testCaseIds.includes(tc.id));
-
-  // Create a mutable copy of variables to persist across scenarios
-  let currentVariables = { ...variables };
-
-  const getExecutionPlan = (
-    tc: SavedTestCase,
-    visited = new Set<string>(),
-  ): SavedTestCase[] => {
-    if (visited.has(tc.id)) return [];
-    visited.add(tc.id);
-
-    let plan: SavedTestCase[] = [];
-    if (tc.dependentOn) {
-      const dep = allTestCases.find((t) => t.id === tc.dependentOn);
-      if (dep) {
-        plan = plan.concat(getExecutionPlan(dep, visited));
-      }
-    }
-    plan.push(tc);
-    return plan;
-  };
-
-  for (const testCase of targetCases) {
-    const plan = getExecutionPlan(testCase);
-    const targetTc = plan[plan.length - 1];
-    const dependencies = plan.slice(0, plan.length - 1);
-
-    const targetEndpoint = endpoints.find((e) => e.id === targetTc.endpointId);
-    if (!targetEndpoint) {
-      console.warn(`Endpoint not found for test case ${targetTc.name}`);
-      continue;
-    }
-
-    try {
-      // Use saved MTC data if available, otherwise generate
-      let dummyMtcData;
-      if (savedMtcData && savedMtcData[targetTc.id]) {
-        dummyMtcData = JSON.parse(JSON.stringify(savedMtcData[targetTc.id]));
-      } else {
-        dummyMtcData = generateMTCData(
-          targetTc,
-          targetEndpoint,
-          1,
-          currentVariables,
-        );
-      }
-
-      const scenarioCount = dummyMtcData.rawRows.length;
-
-      const tcExcelData: any[] = [];
-      let currentSlNo = 1;
-
-      for (let i = 0; i < scenarioCount; i++) {
-        // 1. Run dependencies (Happy Flow only)
-        for (const depTc of dependencies) {
-          const depEndpoint = endpoints.find((e) => e.id === depTc.endpointId);
-          if (!depEndpoint) continue;
-
-          let depMtcData;
-          if (savedMtcData && savedMtcData[depTc.id]) {
-            depMtcData = JSON.parse(JSON.stringify(savedMtcData[depTc.id]));
-          } else {
-            depMtcData = generateMTCData(
-              depTc,
-              depEndpoint,
-              currentSlNo,
-              currentVariables,
-            );
-          }
-
-          if (depMtcData.rawRows.length === 0) continue;
-
-          const depRawRow = depMtcData.rawRows[0];
-          const depExcelRow = depMtcData.rows[0];
-
-          // Fix Sl No for dependency
-          depExcelRow["Sl No"] = currentSlNo;
-          depRawRow.slNo = currentSlNo;
-
-          try {
-            const resolvedDepRawRow = resolveRawRow(
-              depRawRow,
-              currentVariables,
-            );
-            updateExcelRowFromResolved(depExcelRow, resolvedDepRawRow);
-            const depResult = await executeMTCScenario(
-              depTc,
-              resolvedDepRawRow,
-              globalAuth,
-              currentVariables,
-            );
-
-            if (depResult.capturedData) {
-              depResult.capturedData.forEach((c) => {
-                currentVariables[c.variableName] = c.value;
-              });
-            }
-
-            depResult.testCaseName = `[Dependency] ${depResult.testCaseName}`;
-            results.push(depResult);
-
-            depExcelRow["Actual Result"] = depResult.statusCode
-              ? `Status: ${depResult.statusCode}\n${String(depResult.response.body).substring(0, 100)}...`
-              : depResult.statusText;
-            depExcelRow["Status"] =
-              depResult.status === "pass" ? "Pass" : "Fail";
-
-            if (depResult.status === "pass") {
-              depExcelRow["Comments"] = "Dependency passed successfully.";
-            } else {
-              depExcelRow["Comments"] =
-                `Dependency failed. Expected: ${depRawRow.expected}, Actual: ${depResult.statusCode}`;
-            }
-
-            tcExcelData.push(depExcelRow);
-            currentSlNo++;
-          } catch (e) {
-            console.error(
-              `Failed to execute dependency ${depRawRow.summary}`,
-              e,
-            );
-            depExcelRow["Actual Result"] = "Execution Error";
-            depExcelRow["Status"] = "Fail";
-            depExcelRow["Comments"] =
-              `Execution error: ${e instanceof Error ? e.message : String(e)}`;
-            tcExcelData.push(depExcelRow);
-            currentSlNo++;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        // 2. Run target scenario
-        let freshTargetMtcData;
-        if (savedMtcData && savedMtcData[targetTc.id]) {
-          freshTargetMtcData = JSON.parse(
-            JSON.stringify(savedMtcData[targetTc.id]),
-          );
-        } else {
-          freshTargetMtcData = generateMTCData(
-            targetTc,
-            targetEndpoint,
-            currentSlNo,
-            currentVariables,
-          );
-        }
-
-        if (i >= freshTargetMtcData.rawRows.length) continue;
-
-        const rawRow = freshTargetMtcData.rawRows[i];
-        const excelRow = freshTargetMtcData.rows[i];
-
-        // Fix Sl No since we are picking the i-th row
-        excelRow["Sl No"] = currentSlNo;
-        rawRow.slNo = currentSlNo;
-
-        try {
-          const resolvedRawRow = resolveRawRow(rawRow, currentVariables);
-          updateExcelRowFromResolved(excelRow, resolvedRawRow);
-          const result = await executeMTCScenario(
-            targetTc,
-            resolvedRawRow,
-            globalAuth,
-            currentVariables,
-          );
-
-          if (result.capturedData) {
-            result.capturedData.forEach((c) => {
-              currentVariables[c.variableName] = c.value;
-            });
-          }
-
-          results.push(result);
-
-          excelRow["Actual Result"] = result.statusCode
-            ? `Status: ${result.statusCode}\n${String(result.response.body).substring(0, 100)}...`
-            : result.statusText;
-          excelRow["Status"] = result.status === "pass" ? "Pass" : "Fail";
-
-          if (result.status === "pass") {
-            excelRow["Comments"] = "Test case passed successfully.";
-          } else if (result.status === "fail") {
-            excelRow["Comments"] =
-              `Test case failed. Expected status code: ${rawRow.expected}, Actual: ${result.statusCode}`;
-          } else {
-            excelRow["Comments"] = `Execution error: ${result.response.body}`;
-          }
-
-          tcExcelData.push(excelRow);
-          currentSlNo++;
-        } catch (e) {
-          console.error(`Failed to execute scenario ${rawRow.summary}`, e);
-          excelRow["Actual Result"] = "Execution Error";
-          excelRow["Status"] = "Fail";
-          excelRow["Comments"] =
-            `Execution error: ${e instanceof Error ? e.message : String(e)}`;
-          tcExcelData.push(excelRow);
-          currentSlNo++;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-
-      if (!excelDataByTestCase[testCase.id]) {
-        excelDataByTestCase[testCase.id] = [];
-      }
-      excelDataByTestCase[testCase.id].push(...tcExcelData);
-    } catch (err) {
-      console.error(`Failed to generate MTCs for ${targetTc.name}`, err);
-    }
-  }
-
-  return { results, excelDataByTestCase, updatedVariables: currentVariables };
-};
-
-const executeMTCScenario = async (
-  tc: SavedTestCase,
-  rawRow: any,
-  globalAuth: GlobalAuth,
-  variables: Record<string, string>,
-): Promise<ExecutionResult> => {
-  const startTime = performance.now();
-
-  // 1. Construct URL
-  let finalUrl = tc.url;
-
-  // Replace path params in URL string first to avoid URL encoding issues with {}
-  Object.entries(rawRow.pathParams).forEach(([k, v]) => {
-    finalUrl = finalUrl.replace(new RegExp(`\\$\\{${k}\\}`, "g"), String(v));
-    finalUrl = finalUrl.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
-  });
-
-  // Substitute global variables (e.g., {{baseUrl}})
-  finalUrl = substituteVariables(finalUrl, variables);
-
-  try {
-    const urlObj = new URL(finalUrl);
-
-    // Add query params
-    Object.entries(rawRow.queryParams).forEach(([k, v]) => {
-      if (v !== null && v !== undefined && v !== "") {
-        urlObj.searchParams.set(k, String(v));
-      }
-    });
-    finalUrl = urlObj.toString();
-  } catch (e) {
-    console.warn("Could not parse URL object", e);
-  }
-
-  // 2. Prepare Headers
-  const headers = new Headers();
-  Object.entries(rawRow.headerParams).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== "") {
-      headers.append(k, String(v));
-    }
-  });
-
-  // Apply Global Auth if needed
-  if (globalAuth.type === "bearer" && globalAuth.bearerToken) {
-    headers.set("Authorization", `Bearer ${globalAuth.bearerToken}`);
-  } else if (
-    globalAuth.type === "apikey" &&
-    globalAuth.apiKey &&
-    globalAuth.apiKeyValue
-  ) {
-    headers.set(globalAuth.apiKey, globalAuth.apiKeyValue);
-  } else if (
-    globalAuth.type === "basic" &&
-    globalAuth.username &&
-    globalAuth.password
-  ) {
-    const creds = btoa(`${globalAuth.username}:${globalAuth.password}`);
-    headers.set("Authorization", `Basic ${creds}`);
-  }
-
-  // 3. Prepare Body
-  let body: any = undefined;
-  if (
-    rawRow.payload &&
-    (typeof rawRow.payload === "string"
-      ? rawRow.payload.length > 0
-      : Object.keys(rawRow.payload).length > 0)
-  ) {
-    if (tc.bodyType === "raw") {
-      if (tc.rawFormat === "json") {
-        body =
-          typeof rawRow.payload === "string"
-            ? rawRow.payload
-            : JSON.stringify(rawRow.payload);
-      } else {
-        body = String(rawRow.payload);
-      }
-    } else if (tc.bodyType === "form-data") {
-      const items: { key: string; value: string }[] = [];
-      Object.entries(rawRow.payload).forEach(([k, v]) => {
-        items.push({ key: k, value: String(v) });
-      });
-      body = { _isFormData: true, items };
-    } else if (tc.bodyType === "x-www-form-urlencoded") {
-      const params = new URLSearchParams();
-      Object.entries(rawRow.payload).forEach(([k, v]) => {
-        params.append(k, String(v));
-      });
-      body = params.toString();
-    }
-  }
-
-  if (body && !headers.has("Content-Type")) {
-    if (tc.bodyType === "raw" && tc.rawFormat === "json") {
-      headers.set("Content-Type", "application/json");
-    } else if (tc.bodyType === "x-www-form-urlencoded") {
-      headers.set("Content-Type", "application/x-www-form-urlencoded");
-    }
-  }
-
-  const plainHeaders: Record<string, string> = {};
-  headers.forEach((v, k) => {
-    plainHeaders[k] = v;
-  });
-
-  const proxyPayload = {
-    method: rawRow.httpMethod,
-    url: finalUrl,
-    headers: plainHeaders,
-    data: body,
-  };
-
-  let responseBody: any;
-  let statusCode = 0;
-  let statusText = "";
-  let status = "error";
-  let resHeaders: Record<string, string> = {};
-
-  try {
-    const response = await fetch("/api/proxy", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(proxyPayload),
-    });
-
-    const proxyRes = await response.json();
-    if (proxyRes.error) {
-      responseBody = proxyRes.details || proxyRes.error;
-    } else {
-      statusCode = proxyRes.status;
-      statusText = proxyRes.statusText;
-      responseBody = proxyRes.data;
-      resHeaders = proxyRes.headers || {};
-      if (typeof responseBody === "object") {
-        responseBody = JSON.stringify(responseBody, null, 2);
-      } else {
-        responseBody = String(responseBody);
-      }
-    }
-
-    // Determine Pass/Fail based on Expected Status Code
-    let expectedStatuses = String(rawRow.expected)
-      .split("/")
-      .map((s) => parseInt(s.trim()));
-    if (expectedStatuses.includes(statusCode)) {
-      status = "pass";
-    } else {
-      status = "fail";
-    }
-  } catch (e: any) {
-    responseBody = { error: e.message };
-    status = "error";
-  }
-
-  const capturedData: any[] = [];
-
-  // Execute Post-Response Script
-  if (rawRow.postResponseScript && rawRow.postResponseScript.trim()) {
-    try {
-      const pm = {
-        response: {
-          json: () =>
-            typeof responseBody === "object"
-              ? responseBody
-              : JSON.parse(responseBody),
-          text: () =>
-            typeof responseBody === "string"
-              ? responseBody
-              : JSON.stringify(responseBody),
-          headers: resHeaders,
-          code: statusCode,
-          status: statusText,
-        },
-      };
-      const scriptFn = new Function("pm", rawRow.postResponseScript);
-      scriptFn(pm);
-    } catch (err) {
-      console.error("Error executing post-response script:", err);
-    }
-  }
-
-  // Process Captures
-  if (rawRow.postResponse && rawRow.postResponse.length > 0) {
-    rawRow.postResponse.forEach((capture: any) => {
-      if (
-        capture.type === "json_path" &&
-        capture.property &&
-        capture.variableName
-      ) {
-        try {
-          const pathParts = capture.property
-            .replace(/^\$\./, "")
-            .replace(/\[(\d+)\]/g, ".$1")
-            .split(".")
-            .filter(Boolean);
-          let target =
-            typeof responseBody === "string"
-              ? JSON.parse(responseBody)
-              : responseBody;
-          for (const part of pathParts) {
-            if (target && typeof target === "object") target = target[part];
-            else {
-              target = undefined;
-              break;
-            }
-          }
-          if (target !== undefined) {
-            capturedData.push({
-              variableName: capture.variableName,
-              value: String(target),
-              source: capture.property,
-            });
-          }
-        } catch (e) {
-          console.error("Error in JSON path capture:", e);
-        }
-      } else if (
-        capture.type === "header_value" &&
-        capture.property &&
-        capture.variableName
-      ) {
-        const headerVal =
-          resHeaders[capture.property.toLowerCase()] ||
-          resHeaders[capture.property];
-        if (headerVal !== undefined) {
-          capturedData.push({
-            variableName: capture.variableName,
-            value: String(headerVal),
-            source: capture.property,
-          });
-        }
-      }
-    });
-  }
-
-  const endTime = performance.now();
-
-  return {
-    id: Math.random().toString(),
-    testCaseId: tc.id,
-    testCaseName: `${tc.name} - ${rawRow.set} - ${rawRow.summary}`,
-    status: status as "pass" | "fail" | "error",
-    statusCode,
-    statusText,
-    responseTime: Math.round(endTime - startTime),
-    request: {
-      method: rawRow.httpMethod,
-      url: finalUrl,
-      headers: plainHeaders,
-      body: body,
-    },
-    response: {
-      headers: resHeaders,
-      body: responseBody,
-    },
-    assertionResults: [
-      {
-        assertion: {
-          id: "mtc-check",
-          type: "status_code",
-          operator: "eq",
-          expected: String(rawRow.expected),
-        },
-        passed: status === "pass",
-        actual: statusCode.toString(),
-      },
-    ],
-    capturedData: capturedData,
-    timestamp: Date.now(),
-  };
-};
-
-const executeScenario = async (
-  tc: SavedTestCase,
-  rawRow: any,
-  globalAuth: GlobalAuth,
-  variables: Record<string, string>,
-): Promise<ExecutionResult> => {
-  const startTime = performance.now();
-
-  // ✅ FIXED: Correct source
-  let finalUrl = tc.request?.url || "";
-
-  // ============================
-  // 🔹 PATH PARAMS
-  // ============================
-  Object.entries(rawRow.pathParams || {}).forEach(([k, v]) => {
-    finalUrl = finalUrl.replace(new RegExp(`\\$\\{${k}\\}`, "g"), String(v));
-    finalUrl = finalUrl.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
-  });
-
-  finalUrl = substituteVariables(finalUrl, variables);
-
-  try {
-    const urlObj = new URL(finalUrl);
-
-    Object.entries(rawRow.queryParams || {}).forEach(([k, v]) => {
-      if (v !== null && v !== undefined && v !== "") {
-        urlObj.searchParams.set(k, String(v));
-      }
-    });
-
-    finalUrl = urlObj.toString();
-  } catch (e) {
-    console.warn("Invalid URL:", finalUrl);
-  }
-
-  // ============================
-  // 🔹 HEADERS
-  // ============================
-  const headers = new Headers();
-
-  Object.entries(rawRow.headerParams || {}).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== "") {
-      headers.append(k, String(v));
-    }
-  });
-
-  // Auth
-  if (globalAuth.type === "bearer" && globalAuth.bearerToken) {
-    headers.set("Authorization", `Bearer ${globalAuth.bearerToken}`);
-  } else if (
-    globalAuth.type === "apikey" &&
-    globalAuth.apiKey &&
-    globalAuth.apiKeyValue
-  ) {
-    headers.set(globalAuth.apiKey, globalAuth.apiKeyValue);
-  } else if (
-    globalAuth.type === "basic" &&
-    globalAuth.username &&
-    globalAuth.password
-  ) {
-    headers.set(
-      "Authorization",
-      `Basic ${btoa(`${globalAuth.username}:${globalAuth.password}`)}`,
-    );
-  }
-
-  // ============================
-  // 🔹 BODY
-  // ============================
-  let body: any = undefined;
-
-  const bodyType = tc.request?.bodyType;
-  const rawFormat = tc.request?.rawFormat;
-
-  if (
-    rawRow.payload &&
-    (typeof rawRow.payload === "string"
-      ? rawRow.payload.length > 0
-      : Object.keys(rawRow.payload).length > 0)
-  ) {
-    if (bodyType === "raw") {
-      body =
-        rawFormat === "json"
-          ? typeof rawRow.payload === "string"
-            ? rawRow.payload
-            : JSON.stringify(rawRow.payload)
-          : String(rawRow.payload);
-    } else if (bodyType === "x-www-form-urlencoded") {
-      const params = new URLSearchParams();
-      Object.entries(rawRow.payload).forEach(([k, v]) => {
-        params.append(k, String(v));
-      });
-      body = params.toString();
-    }
-  }
-
-  if (body && !headers.has("Content-Type")) {
-    if (bodyType === "raw" && rawFormat === "json") {
-      headers.set("Content-Type", "application/json");
-    } else if (bodyType === "x-www-form-urlencoded") {
-      headers.set("Content-Type", "application/x-www-form-urlencoded");
-    }
-  }
-
-  const plainHeaders: Record<string, string> = {};
-  headers.forEach((v, k) => (plainHeaders[k] = v));
-
-  // ============================
-  // 🔹 API CALL
-  // ============================
-  let responseBody: any;
-  let statusCode = 0;
-  let statusText = "";
-  let status: "pass" | "fail" | "error" = "error";
-  let resHeaders: Record<string, string> = {};
-
-  try {
-    const response = await fetch("/api/proxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        method: rawRow.httpMethod,
-        url: finalUrl,
-        headers: plainHeaders,
-        data: body,
-      }),
-    });
-
-    const proxyRes = await response.json();
-
-    if (proxyRes.error) {
-      responseBody = proxyRes.details || proxyRes.error;
-    } else {
-      statusCode = proxyRes.status;
-      statusText = proxyRes.statusText;
-      responseBody = proxyRes.data;
-      resHeaders = proxyRes.headers || {};
-
-      responseBody =
-        typeof responseBody === "object"
-          ? JSON.stringify(responseBody, null, 2)
-          : String(responseBody);
-    }
-
-    const expectedStatuses = String(rawRow.expected)
-      .split("/")
-      .map((s) => parseInt(s.trim()));
-
-    status = expectedStatuses.includes(statusCode) ? "pass" : "fail";
-  } catch (e: any) {
-    responseBody = e.message;
-    status = "error";
-  }
-
-  // ============================
-  // 🔹 CAPTURES (SAFE)
-  // ============================
-  const capturedData: any[] = [];
-
-  if (rawRow.postResponse?.length) {
-    rawRow.postResponse.forEach((capture: any) => {
-      try {
-        if (capture.type === "json_path") {
-          const json =
-            typeof responseBody === "string"
-              ? JSON.parse(responseBody)
-              : responseBody;
-
-          const value = capture.property
-            ?.replace(/^\$\./, "")
-            .split(".")
-            .reduce((acc: any, key: string) => acc?.[key], json);
-
-          if (value !== undefined) {
-            capturedData.push({
-              variableName: capture.variableName,
-              value: String(value),
-              source: capture.property,
-            });
-          }
-        }
-      } catch (e) {
-        console.warn("Capture failed", e);
-      }
-    });
-  }
-
-  const endTime = performance.now();
-
-  // ============================
-  // 🔹 FINAL RESULT
-  // ============================
-  return {
-    id: Math.random().toString(),
-    testCaseId: tc.id,
-    testCaseName: `${tc.endpointName} - ${rawRow.set} - ${rawRow.summary}`,
-    status,
-    statusCode,
-    statusText,
-    responseTime: Math.round(endTime - startTime),
-    request: {
-      method: rawRow.httpMethod,
-      url: finalUrl,
-      headers: plainHeaders,
-      body,
-    },
-    response: {
-      headers: resHeaders,
-      body: responseBody,
-    },
-    assertionResults: [
-      {
-        assertion: {
-          id: "mtc-check",
-          type: "status_code",
-          operator: "eq",
-          expected: String(rawRow.expected),
-        },
-        passed: status === "pass",
-        actual: statusCode.toString(),
-      },
-    ],
-    capturedData,
-    timestamp: Date.now(),
+    updatedRow,
   };
 };

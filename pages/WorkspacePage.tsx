@@ -13,12 +13,7 @@ import TestCasesPanel from "../components/TestCasesPanel";
 import VariablesPanel from "../components/VariablesPanel";
 import ExecutionPanel, { ExecutionProps } from "../components/ExecutionPanel";
 import ReportModal from "../components/ReportModal";
-import {
-  runAutomatedTests,
-  applySubstitutionsToExcelRow,
-} from "../services/automationService";
-import { generateMTCData, substituteVariables } from "../utils/mtcGenerator";
-import { formatAndAppendSheet } from "../utils/excelFormatter";
+import { generateMTCData } from "../utils/mtcGenerator";
 import * as XLSX from "xlsx-js-style";
 import { BASE_URL } from "./LandingPage";
 
@@ -50,11 +45,16 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
   });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [reportData, setReportData] = useState<ExecutionResult[] | null>(null);
-  const [excelDataByTestCase, setExcelDataByTestCase] = useState<Record<
-    string,
-    any[]
-  > | null>(null);
+  // const [reportData, setReportData] = useState<ExecutionResult[] | null>(null);
+  const [reportData, setReportData] = useState<{
+    isOpen: boolean;
+    updatedRow: ExecutionResult[];
+    reportName: any[];
+  }>({
+    isOpen: false,
+    updatedRow: [],
+    reportName: [],
+  });
   const [isExecutingAutomation, setIsExecutingAutomation] = useState(false);
   const [isGeneratingMTC, setIsGeneratingMTC] = useState(false);
   const [generatedMTCData, setGeneratedMTCData] = useState<
@@ -426,9 +426,7 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
           console.log(project.savedTestCases);
           console.log(tc.dependentId[0]);
 
-          const dep = project.savedTestCases.find(
-            (t) => t.id === tc.dependentId[0],
-          );
+          const dep = testCases.find((t) => t.id === tc.dependentId[0]);
           if (dep) {
             plan = plan.concat(getExecutionPlan(dep, visited));
           }
@@ -639,6 +637,8 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
               project={project}
               testCases={testCases}
               variables={variables}
+              globalAuth={globalAuth}
+              setReportData={setReportData}
               getExecutionList={getExecutionList}
               onExportPostman={handleExportModulePostman}
               onExportFireflink={handleExportModuleFireflink}
@@ -648,12 +648,11 @@ const WorkspacePage: React.FC<WorkspacePageProps> = ({ project }) => {
         </div>
       </div>
 
-      {reportData && excelDataByTestCase && (
+      {reportData.isOpen && (
         <ReportModal
-          results={reportData}
+          reportData={reportData}
           onClose={() => {
-            setReportData(null);
-            setExcelDataByTestCase(null);
+            setReportData({ isOpen: false, reportName: [], updatedRow: [] });
           }}
         />
       )}
